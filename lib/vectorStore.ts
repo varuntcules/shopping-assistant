@@ -2,27 +2,22 @@ import { EnrichedProduct } from "./productEnricher";
 import { EMBEDDING_DIMENSION } from "./embeddings";
 import { Pool, PoolClient } from "pg";
 
-// Postgres connection (Supabase or any hosted Postgres+pgvector)
-// Expected env var: DATABASE_URL (recommended) or SUPABASE_DB_URL as fallback
-const DATABASE_URL =
-  process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
-
-if (!DATABASE_URL) {
-  console.warn(
-    "[VectorStore] DATABASE_URL (or SUPABASE_DB_URL) is not set. Knowledge base will appear uninitialized."
-  );
-}
-
 // Singleton connection pool
 let pool: Pool | null = null;
 
 function getPool(): Pool | null {
-  if (!DATABASE_URL) {
+  const databaseUrl =
+    process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
+
+  if (!databaseUrl) {
+    console.warn(
+      "[VectorStore] DATABASE_URL (or SUPABASE_DB_URL) is not set. Knowledge base will appear uninitialized."
+    );
     return null;
   }
   if (!pool) {
     pool = new Pool({
-      connectionString: DATABASE_URL,
+      connectionString: databaseUrl,
       // Allow SSL-required environments like Supabase without rejecting self-signed certs
       ssl:
         process.env.DB_SSL === "false"
@@ -135,9 +130,24 @@ export async function upsertProducts(records: ProductRecord[]): Promise<void> {
     let paramIndex = 1;
 
     for (const record of records) {
-      insertValues.push(
-        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`
-      );
+      const placeholders = [
+        `$${paramIndex++}`, // id
+        `$${paramIndex++}`, // title
+        `$${paramIndex++}`, // handle
+        `$${paramIndex++}`, // vendor
+        `$${paramIndex++}`, // product_type
+        `$${paramIndex++}`, // description
+        `$${paramIndex++}`, // price
+        `$${paramIndex++}`, // currency
+        `$${paramIndex++}`, // image_url
+        `$${paramIndex++}`, // image_alt
+        `$${paramIndex++}`, // all_tags
+        `$${paramIndex++}`, // price_tier
+        `$${paramIndex++}`, // embedding_text
+        `$${paramIndex++}::vector`, // vector
+      ];
+
+      insertValues.push(`(${placeholders.join(", ")})`);
 
       params.push(
         record.id,
@@ -153,7 +163,8 @@ export async function upsertProducts(records: ProductRecord[]): Promise<void> {
         record.allTags,
         record.priceTier,
         record.embeddingText,
-        record.vector
+        // pgvector expects a string like "[0.1, 0.2, ...]"
+        JSON.stringify(record.vector)
       );
     }
 
@@ -217,8 +228,9 @@ export async function searchByVector(
     const params: unknown[] = [];
     let paramIndex = 1;
 
-    // Query vector parameter
-    params.push(queryVector);
+    // Query vector parameter – pgvector expects a string literal like "[0.1, 0.2, ...]"
+    const queryVectorLiteral = JSON.stringify(queryVector);
+    params.push(queryVectorLiteral);
     const vectorParamIndex = paramIndex++;
 
     if (minPrice !== undefined) {
@@ -261,7 +273,7 @@ export async function searchByVector(
         vector
       FROM ${TABLE_NAME}
       ${whereSql}
-      ORDER BY vector <-> $${vectorParamIndex}
+      ORDER BY vector <-> $${vectorParamIndex}::vector
       LIMIT $${paramIndex}
     `;
     params.push(limit * 2); // fetch extra for re-ranking in knowledgeBase
