@@ -1,19 +1,48 @@
-import * as lancedb from "@lancedb/lancedb";
-import * as arrow from "apache-arrow";
-import path from "path";
 import { EnrichedProduct } from "./productEnricher";
 import { EMBEDDING_DIMENSION } from "./embeddings";
+import { Pool, PoolClient } from "pg";
 
-// Database path
-const DB_PATH = path.join(process.cwd(), "data", "products.lance");
+// Postgres connection (Supabase or any hosted Postgres+pgvector)
+// Expected env var: DATABASE_URL (recommended) or SUPABASE_DB_URL as fallback
+const DATABASE_URL =
+  process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
+
+if (!DATABASE_URL) {
+  console.warn(
+    "[VectorStore] DATABASE_URL (or SUPABASE_DB_URL) is not set. Knowledge base will appear uninitialized."
+  );
+}
+
+// Singleton connection pool
+let pool: Pool | null = null;
+
+function getPool(): Pool | null {
+  if (!DATABASE_URL) {
+    return null;
+  }
+  if (!pool) {
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      // Allow SSL-required environments like Supabase without rejecting self-signed certs
+      ssl:
+        process.env.DB_SSL === "false"
+          ? false
+          : { rejectUnauthorized: false },
+    });
+  }
+  return pool;
+}
+
+async function getClient(): Promise<PoolClient | null> {
+  const p = getPool();
+  if (!p) return null;
+  return p.connect();
+}
+
 const TABLE_NAME = "products";
 
-// Singleton connection
-let db: lancedb.Connection | null = null;
-let table: lancedb.Table | null = null;
-
 /**
- * Product record stored in LanceDB
+ * Product record stored in Postgres
  */
 export interface ProductRecord {
   id: string;
@@ -30,68 +59,6 @@ export interface ProductRecord {
   priceTier: string;
   embeddingText: string; // The text used to create embedding
   vector: number[]; // The embedding vector
-}
-
-/**
- * Initialize database connection
- */
-async function getDb(): Promise<lancedb.Connection> {
-  if (!db) {
-    // Ensure data directory exists
-    const fs = await import("fs/promises");
-    await fs.mkdir(path.dirname(DB_PATH), { recursive: true });
-    
-    db = await lancedb.connect(DB_PATH);
-    console.log("[VectorStore] Connected to LanceDB at:", DB_PATH);
-  }
-  return db;
-}
-
-/**
- * Get or create the products table
- */
-async function getTable(): Promise<lancedb.Table> {
-  if (table) {
-    return table;
-  }
-  
-  const database = await getDb();
-  const tableNames = await database.tableNames();
-  
-  if (tableNames.includes(TABLE_NAME)) {
-    table = await database.openTable(TABLE_NAME);
-    console.log("[VectorStore] Opened existing table:", TABLE_NAME);
-  } else {
-    // Create empty table with schema
-    // LanceDB requires at least one record to infer schema
-    // We'll create it on first upsert
-    table = null;
-    console.log("[VectorStore] Table does not exist yet, will create on first upsert");
-  }
-  
-  return table!;
-}
-
-/**
- * Create Arrow schema for the products table
- */
-function createSchema(): arrow.Schema {
-  return new arrow.Schema([
-    new arrow.Field("id", new arrow.Utf8()),
-    new arrow.Field("title", new arrow.Utf8()),
-    new arrow.Field("handle", new arrow.Utf8()),
-    new arrow.Field("vendor", new arrow.Utf8()),
-    new arrow.Field("productType", new arrow.Utf8()),
-    new arrow.Field("description", new arrow.Utf8()),
-    new arrow.Field("price", new arrow.Float64()),
-    new arrow.Field("currency", new arrow.Utf8()),
-    new arrow.Field("imageUrl", new arrow.Utf8()),
-    new arrow.Field("imageAlt", new arrow.Utf8()),
-    new arrow.Field("allTags", new arrow.Utf8()),
-    new arrow.Field("priceTier", new arrow.Utf8()),
-    new arrow.Field("embeddingText", new arrow.Utf8()),
-    new arrow.Field("vector", new arrow.FixedSizeList(EMBEDDING_DIMENSION, new arrow.Field("item", new arrow.Float32()))),
-  ]);
 }
 
 /**
@@ -112,7 +79,7 @@ export function toProductRecords(
     price: p.price || 0,
     currency: p.currency || "INR",
     imageUrl: p.imageUrl || "",
-    imageAlt: p.imageAlt || "", // Convert null to empty string for LanceDB
+    imageAlt: p.imageAlt || "", // Store as empty string instead of null
     allTags: p.allTags.join(", "),
     priceTier: p.priceTier || "mid-range",
     embeddingText: embeddingTexts[i],
@@ -121,28 +88,107 @@ export function toProductRecords(
 }
 
 /**
- * Upsert products into the vector store
+ * Upsert products into the vector store (Postgres + pgvector)
  */
 export async function upsertProducts(records: ProductRecord[]): Promise<void> {
   if (records.length === 0) {
     console.log("[VectorStore] No records to upsert");
     return;
   }
-  
-  const database = await getDb();
-  const tableNames = await database.tableNames();
-  
-  if (tableNames.includes(TABLE_NAME)) {
-    // Drop and recreate for simplicity (full sync)
-    await database.dropTable(TABLE_NAME);
-    console.log("[VectorStore] Dropped existing table for full sync");
+
+  const client = await getClient();
+  if (!client) {
+    console.warn("[VectorStore] No database client available. Skipping upsert.");
+    return;
   }
-  
-  // Create new table with data
-  // Cast to satisfy LanceDB's type requirements
-  table = await database.createTable(TABLE_NAME, records as unknown as Record<string, unknown>[]);
-  
-  console.log(`[VectorStore] Upserted ${records.length} products`);
+
+  try {
+    await client.query("BEGIN");
+
+    // Ensure table and extension exist
+    await client.query('CREATE EXTENSION IF NOT EXISTS "vector";');
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (
+        id TEXT PRIMARY KEY,
+        title TEXT NOT NULL,
+        handle TEXT NOT NULL,
+        vendor TEXT NOT NULL,
+        product_type TEXT NOT NULL,
+        description TEXT NOT NULL,
+        price DOUBLE PRECISION NOT NULL,
+        currency TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        image_alt TEXT NOT NULL,
+        all_tags TEXT NOT NULL,
+        price_tier TEXT NOT NULL,
+        embedding_text TEXT NOT NULL,
+        vector vector(${EMBEDDING_DIMENSION}) NOT NULL
+      )
+    `);
+
+    // Full refresh for simplicity: clear table then bulk insert
+    await client.query(`TRUNCATE TABLE ${TABLE_NAME};`);
+
+    const insertValues: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    for (const record of records) {
+      insertValues.push(
+        `($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`
+      );
+
+      params.push(
+        record.id,
+        record.title,
+        record.handle,
+        record.vendor,
+        record.productType,
+        record.description,
+        record.price,
+        record.currency,
+        record.imageUrl,
+        record.imageAlt,
+        record.allTags,
+        record.priceTier,
+        record.embeddingText,
+        record.vector
+      );
+    }
+
+    const insertQuery = `
+      INSERT INTO ${TABLE_NAME} (
+        id,
+        title,
+        handle,
+        vendor,
+        product_type,
+        description,
+        price,
+        currency,
+        image_url,
+        image_alt,
+        all_tags,
+        price_tier,
+        embedding_text,
+        vector
+      )
+      VALUES ${insertValues.join(", ")}
+    `;
+
+    await client.query(insertQuery, params);
+
+    console.log(`[VectorStore] Upserted ${records.length} products into Postgres`);
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("[VectorStore] Error upserting products:", error);
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**
@@ -158,74 +204,171 @@ export async function searchByVector(
   } = {}
 ): Promise<ProductRecord[]> {
   const { limit = 12, minPrice, maxPrice, priceTier } = options;
-  
-  const database = await getDb();
-  const tableNames = await database.tableNames();
-  
-  if (!tableNames.includes(TABLE_NAME)) {
-    console.log("[VectorStore] No products table found");
+
+  const client = await getClient();
+  if (!client) {
+    console.warn("[VectorStore] No database client available. Returning empty results.");
     return [];
   }
-  
-  const tbl = await database.openTable(TABLE_NAME);
-  
-  // Build the query
-  let query = tbl.vectorSearch(queryVector).limit(limit * 2); // Fetch extra for filtering
-  
-  // Apply filters if specified
-  let whereClause = "";
-  if (minPrice !== undefined) {
-    whereClause += `price >= ${minPrice}`;
+
+  try {
+    // Build WHERE clause
+    const whereClauses: string[] = [];
+    const params: unknown[] = [];
+    let paramIndex = 1;
+
+    // Query vector parameter
+    params.push(queryVector);
+    const vectorParamIndex = paramIndex++;
+
+    if (minPrice !== undefined) {
+      whereClauses.push(`price >= $${paramIndex}`);
+      params.push(minPrice);
+      paramIndex++;
+    }
+
+    if (maxPrice !== undefined) {
+      whereClauses.push(`price <= $${paramIndex}`);
+      params.push(maxPrice);
+      paramIndex++;
+    }
+
+    if (priceTier) {
+      whereClauses.push(`price_tier = $${paramIndex}`);
+      params.push(priceTier);
+      paramIndex++;
+    }
+
+    const whereSql =
+      whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
+
+    // Use pgvector cosine distance (<->) for similarity
+    const sql = `
+      SELECT
+        id,
+        title,
+        handle,
+        vendor,
+        product_type,
+        description,
+        price,
+        currency,
+        image_url,
+        image_alt,
+        all_tags,
+        price_tier,
+        embedding_text,
+        vector
+      FROM ${TABLE_NAME}
+      ${whereSql}
+      ORDER BY vector <-> $${vectorParamIndex}
+      LIMIT $${paramIndex}
+    `;
+    params.push(limit * 2); // fetch extra for re-ranking in knowledgeBase
+
+    const result = await client.query(sql, params);
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      handle: row.handle,
+      vendor: row.vendor,
+      productType: row.product_type,
+      description: row.description,
+      price: Number(row.price),
+      currency: row.currency,
+      imageUrl: row.image_url,
+      imageAlt: row.image_alt,
+      allTags: row.all_tags,
+      priceTier: row.price_tier,
+      embeddingText: row.embedding_text,
+      vector: row.vector as number[],
+    }));
+  } catch (error) {
+    console.error("[VectorStore] Error searching by vector:", error);
+    return [];
+  } finally {
+    client.release();
   }
-  if (maxPrice !== undefined) {
-    if (whereClause) whereClause += " AND ";
-    whereClause += `price <= ${maxPrice}`;
-  }
-  if (priceTier) {
-    if (whereClause) whereClause += " AND ";
-    whereClause += `priceTier = '${priceTier}'`;
-  }
-  
-  if (whereClause) {
-    query = query.where(whereClause);
-  }
-  
-  const results = await query.toArray();
-  
-  // Return only the requested limit
-  return results.slice(0, limit) as unknown as ProductRecord[];
 }
 
 /**
  * Get all products from the store (for debugging/testing)
  */
 export async function getAllProducts(): Promise<ProductRecord[]> {
-  const database = await getDb();
-  const tableNames = await database.tableNames();
-  
-  if (!tableNames.includes(TABLE_NAME)) {
+  const client = await getClient();
+  if (!client) {
+    console.warn("[VectorStore] No database client available. Returning empty list.");
     return [];
   }
-  
-  const tbl = await database.openTable(TABLE_NAME);
-  const results = await tbl.query().toArray();
-  
-  return results as unknown as ProductRecord[];
+
+  try {
+    const result = await client.query(
+      `
+      SELECT
+        id,
+        title,
+        handle,
+        vendor,
+        product_type,
+        description,
+        price,
+        currency,
+        image_url,
+        image_alt,
+        all_tags,
+        price_tier,
+        embedding_text,
+        vector
+      FROM ${TABLE_NAME}
+    `
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      handle: row.handle,
+      vendor: row.vendor,
+      productType: row.product_type,
+      description: row.description,
+      price: Number(row.price),
+      currency: row.currency,
+      imageUrl: row.image_url,
+      imageAlt: row.image_alt,
+      allTags: row.all_tags,
+      priceTier: row.price_tier,
+      embeddingText: row.embedding_text,
+      vector: row.vector as number[],
+    }));
+  } catch (error) {
+    console.error("[VectorStore] Error getting all products:", error);
+    return [];
+  } finally {
+    client.release();
+  }
 }
 
 /**
  * Get product count
  */
 export async function getProductCount(): Promise<number> {
-  const database = await getDb();
-  const tableNames = await database.tableNames();
-  
-  if (!tableNames.includes(TABLE_NAME)) {
+  const client = await getClient();
+  if (!client) {
+    console.warn("[VectorStore] No database client available. Returning count = 0.");
     return 0;
   }
-  
-  const tbl = await database.openTable(TABLE_NAME);
-  return await tbl.countRows();
+
+  try {
+    const result = await client.query(
+      `SELECT COUNT(*)::int AS count FROM ${TABLE_NAME}`
+    );
+    return result.rows[0]?.count ?? 0;
+  } catch (error) {
+    console.error("[VectorStore] Error getting product count:", error);
+    return 0;
+  } finally {
+    client.release();
+  }
 }
 
 /**

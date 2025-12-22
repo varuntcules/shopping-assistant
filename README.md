@@ -1,12 +1,12 @@
 # Voice Shopping Assistant
 
-A voice-enabled shopping assistant MVP built with Next.js (App Router), TypeScript, and Tailwind CSS. Uses a local vector-based knowledge base with Gemini AI for semantic product search.
+A voice-enabled shopping assistant MVP built with Next.js (App Router), TypeScript, and Tailwind CSS. Uses a Postgres+pgvector-based knowledge base (e.g., Supabase) with Gemini AI for semantic product search.
 
 ## Features
 
 - 🎤 **Voice Input**: Speak to search for products (Chrome/Edge recommended)
 - 🤖 **AI-Powered**: Gemini converts natural language to semantic search
-- 🧠 **Knowledge Base**: Local vector store with LanceDB for fast semantic search
+- 🧠 **Knowledge Base**: Hosted vector store backed by Postgres+pgvector (e.g., Supabase)
 - 🏷️ **Smart Tagging**: Gemini-generated tags + rule-based synonyms and price tiers
 - 🛒 **Shopify Integration**: Syncs products from Shopify Admin API
 - 🎯 **Smart Fallbacks**: Never crashes - gracefully handles API failures
@@ -21,7 +21,7 @@ A voice-enabled shopping assistant MVP built with Next.js (App Router), TypeScri
 │  Shopify Admin API  →  Tag Enricher  →  Gemini Embeddings      │
 │         ↓                   ↓                   ↓              │
 │    Fetch Products    Smart Tags +        Vector Store          │
-│                      Synonyms           (LanceDB)              │
+│                      Synonyms         (Postgres+pgvector)      │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -44,6 +44,7 @@ A voice-enabled shopping assistant MVP built with Next.js (App Router), TypeScri
 - npm or yarn
 - Shopify store with Admin API access
 - Google AI Studio API key (Gemini)
+- Hosted Postgres database with `pgvector` extension (e.g., Supabase)
 
 ### Installation
 
@@ -72,6 +73,10 @@ SHOPIFY_ADMIN_API_VERSION="2025-10"
 
 # Optional: Sync secret (leave empty for no auth)
 SYNC_SECRET=""
+
+# Database (Supabase or any Postgres+pgvector)
+DATABASE_URL="postgres://user:password@host:5432/dbname"
+DB_SSL="true"
 ```
 
 4. Run the initial product sync:
@@ -97,10 +102,12 @@ npm run dev
 | `SHOPIFY_ADMIN_API_TOKEN` | ✅ | - | Admin API access token |
 | `SHOPIFY_ADMIN_API_VERSION` | ❌ | `2025-10` | Admin API version |
 | `SYNC_SECRET` | ❌ | - | Optional secret for sync endpoint |
+| `DATABASE_URL` | ✅ (prod) | - | Postgres connection string (Supabase or similar) |
+| `DB_SSL` | ❌ | `true` | Set to `false` if your Postgres instance does not require SSL |
 
 ## Product Sync
 
-Products are synced from Shopify Admin API to a local vector store. This needs to be done:
+Products are synced from Shopify Admin API to a hosted vector store in Postgres+pgvector. This needs to be done:
 - Before first use
 - Daily (or as needed when products change)
 
@@ -165,14 +172,12 @@ lib/
 ├── gemini.ts               # Gemini AI integration
 ├── embeddings.ts           # Gemini embeddings
 ├── productEnricher.ts      # Smart tagging (Gemini + rules)
-├── vectorStore.ts          # LanceDB wrapper
+├── vectorStore.ts          # Postgres+pgvector wrapper
 ├── knowledgeBase.ts        # Orchestration layer
 ├── shopify.ts              # Legacy Storefront API (unused)
 └── shopifyAdmin.ts         # Admin API client
 scripts/
 └── sync-products.ts        # CLI sync script
-data/
-└── products.lance/         # LanceDB vector store (auto-created)
 ```
 
 ## How It Works
@@ -242,8 +247,39 @@ npx tsx scripts/sync-products.ts
 
 ### No products returned
 - Ensure sync completed successfully
-- Check the data/products.lance/ directory exists
 - Try simpler queries
+
+## Production Setup (Supabase example)
+
+1. Create a Supabase project and obtain the **Postgres connection string**.
+2. In the SQL editor, enable pgvector and create the `products` table:
+
+```sql
+create extension if not exists "vector";
+
+create table if not exists products (
+  id text primary key,
+  title text not null,
+  handle text not null,
+  vendor text not null,
+  product_type text not null,
+  description text not null,
+  price double precision not null,
+  currency text not null,
+  image_url text not null,
+  image_alt text not null,
+  all_tags text not null,
+  price_tier text not null,
+  embedding_text text not null,
+  vector vector(768) not null
+);
+```
+
+3. In your **Vercel project settings**, add:
+   - `DATABASE_URL` = the Supabase Postgres connection string
+   - `GEMINI_API_KEY`, `GEMINI_MODEL`, and Shopify env vars from above
+
+After this one-time setup, any commit merged to the main branch will deploy successfully on Vercel without additional configuration from collaborators.
 
 ### Gemini errors / Rate limits
 - The app automatically falls back to simpler models
