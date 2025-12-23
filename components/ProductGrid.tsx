@@ -2,10 +2,37 @@
 
 import { ProductCard } from "@/lib/types";
 import Image from "next/image";
+import { useState } from "react";
 
 interface ProductGridProps {
   products: ProductCard[];
   title?: string;
+}
+
+// Product image component with error handling
+function ProductImage({ src, alt }: { src: string; alt: string }) {
+  const [hasError, setHasError] = useState(false);
+  
+  if (hasError || !src || src === "/placeholder-product.png") {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center">
+        <svg className="w-16 h-16 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      </div>
+    );
+  }
+  
+  return (
+    <Image
+      src={src}
+      alt={alt}
+      fill
+      className="object-cover group-hover:scale-105 transition-transform duration-500"
+      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+      onError={() => setHasError(true)}
+    />
+  );
 }
 
 function formatPrice(amount: string, currencyCode: string): string {
@@ -49,21 +76,10 @@ export default function ProductGrid({ products, title }: ProductGridProps) {
           >
             {/* Product Image */}
             <div className="relative aspect-square bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden">
-              {product.image.url && product.image.url !== "/placeholder-product.png" ? (
-                <Image
-                  src={product.image.url}
-                  alt={product.image.altText || product.title}
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                  sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                />
-              ) : (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <svg className="w-16 h-16 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              )}
+              <ProductImage 
+                src={product.image.url} 
+                alt={product.image.altText || product.title} 
+              />
               
               {/* Price badge */}
               <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm text-white text-sm font-bold px-3 py-1.5 rounded-full">

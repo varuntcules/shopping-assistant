@@ -1,14 +1,19 @@
 You are implementing the hackathon shopping assistant described in the brief.
 
-Goal: Implement a STRICT “Semantic IA” reasoning layer + response contract so the assistant:
-- asks focused clarifying questions
+Goal: Implement a STRICT "Semantic IA" reasoning layer + response contract so the assistant:
+- asks focused clarifying questions (MAXIMUM 2 per conversation)
 - maps user purpose -> key attributes (6–8)
-- fetches products from Shopify Admin API
+- fetches products from the dummy product catalog
 - recommends 2–3 products with explanations tied only to known attributes
 - supports A vs B comparison
 - handles uncertainty and avoids hallucinations
 
-IMPORTANT: Do NOT change the schema without updating schema.json. Do NOT invent product specs. If a required attribute is missing, mark it "unknown" and either ask a clarifying question or state uncertainty.
+IMPORTANT CONSTRAINTS:
+- Ask a MAXIMUM of 2 clarifying questions per conversation, then show products
+- After 2 questions, proceed with best-guess recommendations using EDUCATE_THEN_SEARCH mode
+- Do NOT change the schema without updating schema.json
+- Do NOT invent product specs - if a required attribute is missing, mark it "unknown"
+- All product recommendations come exclusively from the dummy catalog (products_dummy table)
 
 === Deliverables to implement in this repo ===
 

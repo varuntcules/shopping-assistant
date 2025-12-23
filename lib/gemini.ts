@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { SearchIntent } from "./types";
+import { SearchIntent, ChatMessage } from "./types";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
@@ -15,20 +15,37 @@ interface CacheEntry {
 const intentCache = new Map<string, CacheEntry>();
 const CACHE_TTL = 60 * 1000; // 60 seconds
 
-function getFromCache(message: string): SearchIntent | null {
-  const entry = intentCache.get(message.toLowerCase().trim());
+/**
+ * Generate a cache key that incorporates both the current message and conversation history
+ */
+function generateCacheKey(message: string, history?: ChatMessage[]): string {
+  const messagePart = message.toLowerCase().trim();
+  if (!history || history.length === 0) {
+    return messagePart;
+  }
+  // Include a hash of history content to differentiate same message with different context
+  const historyHash = history
+    .map((m) => `${m.role}:${m.content.slice(0, 50)}`)
+    .join("|");
+  return `${messagePart}||${historyHash}`;
+}
+
+function getFromCache(message: string, history?: ChatMessage[]): SearchIntent | null {
+  const cacheKey = generateCacheKey(message, history);
+  const entry = intentCache.get(cacheKey);
   if (!entry) return null;
   
   if (Date.now() - entry.timestamp > CACHE_TTL) {
-    intentCache.delete(message.toLowerCase().trim());
+    intentCache.delete(cacheKey);
     return null;
   }
   
   return entry.intent;
 }
 
-function setCache(message: string, intent: SearchIntent): void {
-  intentCache.set(message.toLowerCase().trim(), { intent, timestamp: Date.now() });
+function setCache(message: string, history: ChatMessage[] | undefined, intent: SearchIntent): void {
+  const cacheKey = generateCacheKey(message, history);
+  intentCache.set(cacheKey, { intent, timestamp: Date.now() });
 }
 
 // Build the model try list based on env vars
@@ -51,7 +68,7 @@ const searchIntentSchema = {
   properties: {
     query: {
       type: Type.STRING,
-      description: "Shopify search query syntax. Use filters like title:, tag:, vendor:, product_type:, variants.price:<X for price filters. Keep it short and robust.",
+      description: "A rich semantic search query synthesized from the ENTIRE conversation. Combine all gathered information: product category, purpose/use case, budget constraints, features, preferences. Example: 'camera travel vlogging lightweight compact 4K video under 50000 INR'. Do NOT use Shopify syntax - just natural language keywords and phrases that capture the full user intent. For price filters, append 'under X' or 'above X' in natural language.",
     },
     first: {
       type: Type.NUMBER,
@@ -108,17 +125,34 @@ CORE PHILOSOPHY:
 - When users know exactly what they want, show products immediately
 - Help users understand tradeoffs, materials, features, and what matters for their use case
 
+CRITICAL - CONVERSATION HISTORY & SEARCH QUERY:
+- You will receive the FULL conversation history, not just the latest message
+- When generating the search query, you MUST synthesize ALL information gathered throughout the conversation
+- Extract and combine: product category, purpose/use case, budget, features, preferences, brand requirements
+- The search query should be a rich semantic description capturing the COMPLETE user intent
+- Example: If user said "I need a camera", then answered "travel vlogging" for use case, and "under 50k" for budget, the query should be: "camera travel vlogging lightweight compact video recording under 50000 INR"
+- NEVER just use the last message as the query - always synthesize the full context
+
+IMPORTANT - CLARIFYING QUESTION LIMIT:
+- Ask a MAXIMUM of 2 clarifying questions in a conversation before showing products
+- After 2 follow-up questions, you MUST proceed to show products with your best-guess understanding
+- Prefer EDUCATE_THEN_SEARCH (show products with educational context) over endless clarification
+- Only ask additional questions after 2 turns in extremely rare cases where intent is totally unclear
+- The goal is to help users quickly, not interrogate them
+
 CONFIDENCE & NEXT ACTION RULES:
 1. Set confidence LOW (0.0-0.4) and nextAction: "ASK_FOLLOWUP" when:
    - Query is very vague (e.g., "shoes", "laptop", "something nice")
    - Missing critical details (size, budget, use case, style)
    - User seems to be browsing/researching, not buying
    - Category has important tradeoffs user should understand first
+   - BUT: If conversation already has 2+ back-and-forth turns, prefer "EDUCATE_THEN_SEARCH" instead
    
 2. Set confidence MEDIUM (0.4-0.7) and nextAction: "EDUCATE_THEN_SEARCH" when:
    - Query has some specifics but could benefit from guidance
    - User might not know about important considerations
    - You can provide helpful context alongside products
+   - User has answered some clarifying questions already
    
 3. Set confidence HIGH (0.7-1.0) and nextAction: "SEARCH_NOW" when:
    - User knows exactly what they want (specific brand, model, features)
@@ -127,9 +161,10 @@ CONFIDENCE & NEXT ACTION RULES:
    - Repeat query after already discussing the category
 
 FOLLOW-UP QUESTIONS:
-- Ask ONE focused question at a time
+- Ask ONE focused question at a time (never multiple questions)
 - Focus on: intended use, budget range, size/fit needs, style preferences, must-have features
 - Make questions conversational, not robotic
+- Limit yourself to 2 clarifying questions maximum per conversation
 - Example: "Are you looking for running shoes for daily training, or something for races and speed work?"
 
 EDUCATIONAL CONTENT:
@@ -145,22 +180,24 @@ EXTERNAL TOPICS:
 - Example: ["best cushioning technology for marathon running", "leather vs synthetic hiking boots durability"]
 
 SEARCH QUERY RULES:
-1. Budget interpretation (INR):
-   - "under 5k" or "below 5000" → use variants.price:<5000
-   - "under 10,000" or "below 10000" → use variants.price:<10000
-   - "around X" → use variants.price:<X+20% as a rough upper bound
-2. Sorting:
+1. The query is used for SEMANTIC SEARCH (vector similarity), not Shopify API
+2. Synthesize a rich, descriptive query from the ENTIRE conversation:
+   - Include: product type, use case, features, style, brand preferences
+   - Include budget in natural language: "under 50000 INR", "budget friendly", "premium"
+   - Example good query: "mirrorless camera travel vlogging lightweight 4K video stabilization under 80000 INR"
+   - Example bad query: "under 50k" (missing context from earlier in conversation)
+3. Budget interpretation (INR):
+   - "under 5k" or "below 5000" → include "under 5000 INR" or "budget" in query
+   - "around X" → include "around X INR" in query
+4. Sorting:
    - "cheap" or "budget" → sortKey: "PRICE", reverse: false
    - "expensive" or "premium" → sortKey: "PRICE", reverse: true
    - "latest" or "newest" → sortKey: "CREATED_AT", reverse: true
    - "best selling" or "popular" → sortKey: "BEST_SELLING", reverse: false
    - Default: "RELEVANCE", reverse: false
-3. Query syntax:
-   - Use: title:, tag:, vendor:, product_type:, variants.price:
-   - Keep queries short and focused
-4. first: 12 default, 4-24 range
-5. uiTitle: Descriptive and friendly
-6. assistantMessage: Conversational, include educational content when nextAction is EDUCATE_THEN_SEARCH`;
+5. first: 12 default, 4-24 range
+6. uiTitle: Descriptive and friendly
+7. assistantMessage: Conversational, include educational content when nextAction is EDUCATE_THEN_SEARCH`;
 
 export interface ParseIntentResult {
   intent: SearchIntent;
@@ -168,9 +205,59 @@ export interface ParseIntentResult {
   fallbackReason?: string;
 }
 
-export async function parseUserIntent(message: string): Promise<ParseIntentResult> {
+/**
+ * Build conversation contents for Gemini from history + current message
+ */
+function buildConversationContents(
+  message: string,
+  history?: ChatMessage[]
+): Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> {
+  const contents: Array<{ role: "user" | "model"; parts: Array<{ text: string }> }> = [];
+
+  // Add history messages if present
+  if (history && history.length > 0) {
+    for (const msg of history) {
+      contents.push({
+        // Gemini uses "model" instead of "assistant"
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }],
+      });
+    }
+  }
+
+  // Add the current message
+  contents.push({
+    role: "user",
+    parts: [{ text: message }],
+  });
+
+  return contents;
+}
+
+/**
+ * Build a fallback query by synthesizing context from history
+ */
+function buildFallbackQuery(message: string, history?: ChatMessage[]): string {
+  if (!history || history.length === 0) {
+    return message.trim();
+  }
+
+  // Extract user messages from history and combine with current message
+  const userMessages = history
+    .filter((m) => m.role === "user")
+    .map((m) => m.content);
+  userMessages.push(message);
+
+  // Simple synthesis: join all user messages
+  return userMessages.join(" ").trim();
+}
+
+export async function parseUserIntent(
+  message: string,
+  history?: ChatMessage[]
+): Promise<ParseIntentResult> {
   // Check cache first
-  const cached = getFromCache(message);
+  const cached = getFromCache(message, history);
   if (cached) {
     console.log("[Gemini] Cache hit for:", message);
     return {
@@ -181,21 +268,23 @@ export async function parseUserIntent(message: string): Promise<ParseIntentResul
 
   const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
   const models = getModelTryList();
-  
+
+  // Build conversation contents with full history
+  const contents = buildConversationContents(message, history);
+
+  console.log(
+    `[Gemini] Processing message with ${history?.length || 0} history messages`
+  );
+
   let lastError: Error | null = null;
-  
+
   for (const modelName of models) {
     try {
       console.log(`[Gemini] Trying model: ${modelName}`);
-      
+
       const response = await ai.models.generateContent({
         model: modelName,
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: message }],
-          },
-        ],
+        contents,
         config: {
           systemInstruction: systemPrompt,
           responseMimeType: "application/json",
@@ -210,30 +299,34 @@ export async function parseUserIntent(message: string): Promise<ParseIntentResul
       }
 
       const intent = JSON.parse(text) as SearchIntent;
-      
+
       // Validate and clamp first
       intent.first = Math.max(4, Math.min(24, intent.first || 12));
-      
+
       // Validate sortKey
       const validSortKeys = ["RELEVANCE", "BEST_SELLING", "PRICE", "CREATED_AT"];
       if (!validSortKeys.includes(intent.sortKey)) {
         intent.sortKey = "RELEVANCE";
       }
-      
+
       // Validate confidence (clamp to 0-1)
       intent.confidence = Math.max(0, Math.min(1, intent.confidence ?? 0.5));
-      
+
       // Validate nextAction
-      const validNextActions = ["ASK_FOLLOWUP", "EDUCATE_THEN_SEARCH", "SEARCH_NOW"];
+      const validNextActions = [
+        "ASK_FOLLOWUP",
+        "EDUCATE_THEN_SEARCH",
+        "SEARCH_NOW",
+      ];
       if (!validNextActions.includes(intent.nextAction)) {
         intent.nextAction = "SEARCH_NOW";
       }
-      
+
       // Cache the result
-      setCache(message, intent);
-      
+      setCache(message, history, intent);
+
       console.log(`[Gemini] Success with model: ${modelName}`, intent);
-      
+
       return {
         intent,
         modelUsed: modelName,
@@ -245,16 +338,18 @@ export async function parseUserIntent(message: string): Promise<ParseIntentResul
     }
   }
 
-  // All models failed - return fallback
+  // All models failed - return fallback with synthesized query from history
   console.log("[Gemini] All models failed, using fallback");
-  
+
+  const fallbackQuery = buildFallbackQuery(message, history);
+
   const fallbackIntent: SearchIntent = {
-    query: message.trim(),
+    query: fallbackQuery,
     first: 12,
     sortKey: "RELEVANCE",
     reverse: false,
     uiTitle: "Results",
-    assistantMessage: `Showing results for: "${message}"`,
+    assistantMessage: `Showing results for: "${fallbackQuery}"`,
     confidence: 0.5,
     nextAction: "SEARCH_NOW", // Default to showing products on fallback
   };

@@ -1,3 +1,18 @@
+/**
+ * Knowledge Base Module
+ * 
+ * This module provides the core product search and sync functionality for the
+ * shopping assistant. 
+ * 
+ * IMPORTANT: All user-visible product recommendations are sourced exclusively
+ * from the dummy catalog (products_dummy table in Supabase). This is intentional
+ * for the current demo/development setup and ensures consistency across the
+ * application.
+ * 
+ * The sync functions populate the dummy catalog from Shopify Admin API, and
+ * the search functions query only from this dummy catalog.
+ */
+
 import { adminGetAllProducts, type ShopifyAdminProduct } from "./shopifyAdmin";
 import { enrichProducts, type EnrichedProduct } from "./productEnricher";
 import { generateEmbedding, generateEmbeddingsBatch, createProductEmbeddingText } from "./embeddings";
@@ -123,7 +138,10 @@ function recordToProductCard(record: ProductRecord, storeDomain: string): Produc
 }
 
 /**
- * Search products in the knowledge base using semantic search
+ * Search products in the knowledge base using semantic search.
+ * 
+ * NOTE: Products are sourced exclusively from the dummy catalog (products_dummy).
+ * This is the primary search endpoint used by the /api/assistant route.
  */
 export async function searchProducts(
   query: string,

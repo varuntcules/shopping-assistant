@@ -34,7 +34,14 @@ async function getClient(): Promise<PoolClient | null> {
   return p.connect();
 }
 
-const TABLE_NAME = "products";
+/**
+ * Table name for product storage.
+ * 
+ * NOTE: All user-visible product recommendations are sourced exclusively from
+ * the dummy catalog (products_dummy table). This is intentional for the current
+ * demo/development setup.
+ */
+const TABLE_NAME = "products_dummy";
 
 /**
  * Product record stored in Postgres
