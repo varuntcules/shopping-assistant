@@ -1,0 +1,89 @@
+{
+  "questions": [
+    {
+      "id": "q1",
+      "text": "I need a camera",
+      "expected_mode": "clarify",
+      "requires_clarifying_question": true,
+      "category": "vague_purpose"
+    },
+    {
+      "id": "q2",
+      "text": "What camera should I get?",
+      "expected_mode": "clarify",
+      "requires_clarifying_question": true,
+      "category": "vague_purpose"
+    },
+    {
+      "id": "q3",
+      "text": "I want something for photography",
+      "expected_mode": "clarify",
+      "requires_clarifying_question": true,
+      "category": "vague_purpose"
+    },
+    {
+      "id": "q4",
+      "text": "Show me cameras",
+      "expected_mode": "clarify",
+      "requires_clarifying_question": true,
+      "category": "vague_purpose"
+    },
+    {
+      "id": "q5",
+      "text": "I need a camera for travel vlogging under 50000",
+      "expected_mode": "recommend",
+      "requires_clarifying_question": false,
+      "category": "clear_purpose_budget"
+    },
+    {
+      "id": "q6",
+      "text": "Find me a beginner photography camera around 30000",
+      "expected_mode": "recommend",
+      "requires_clarifying_question": false,
+      "category": "clear_purpose_budget"
+    },
+    {
+      "id": "q7",
+      "text": "I want a camera for low light events, budget is 1 lakh",
+      "expected_mode": "recommend",
+      "requires_clarifying_question": false,
+      "category": "clear_purpose_budget"
+    },
+    {
+      "id": "q8",
+      "text": "Recommend a travel vlogging camera under 40000 INR",
+      "expected_mode": "recommend",
+      "requires_clarifying_question": false,
+      "category": "clear_purpose_budget"
+    },
+    {
+      "id": "q9",
+      "text": "Compare camera 123 vs camera 456",
+      "expected_mode": "compare",
+      "requires_clarifying_question": false,
+      "category": "comparison"
+    },
+    {
+      "id": "q10",
+      "text": "What's the difference between these two cameras?",
+      "expected_mode": "compare",
+      "requires_clarifying_question": false,
+      "category": "comparison"
+    },
+    {
+      "id": "q11",
+      "text": "Which is better for travel vlogging: product A or product B?",
+      "expected_mode": "compare",
+      "requires_clarifying_question": false,
+      "category": "comparison"
+    },
+    {
+      "id": "q12",
+      "text": "Compare the Sony camera with the Canon camera",
+      "expected_mode": "compare",
+      "requires_clarifying_question": false,
+      "category": "comparison"
+    }
+  ]
+}
+

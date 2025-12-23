@@ -1,0 +1,60 @@
+{
+  "mode": "recommend",
+  "intent": {
+    "purpose": "travel_vlogging",
+    "budget": {
+      "min": null,
+      "max": 50000,
+      "currency": "INR"
+    },
+    "category": "Camera",
+    "key_attributes": {},
+    "comparison_request": null
+  },
+  "clarifying_question": null,
+  "recommendations": [
+    {
+      "product_id": "123",
+      "title": "Sony ZV-1 Compact Camera",
+      "price": {
+        "value": 45000,
+        "currency": "INR",
+        "as_of": "2025-01-27T10:00:00Z"
+      },
+      "availability": "in_stock",
+      "why_it_fits": [
+        "Excellent fit for travel_vlogging",
+        "Has video_resolution: 4K",
+        "Has weight_grams: 294"
+      ],
+      "tradeoffs": [
+        "No major tradeoffs identified"
+      ],
+      "confidence": "high",
+      "proof": ["body_html", "title"]
+    },
+    {
+      "product_id": "456",
+      "title": "Canon PowerShot G7 X Mark III",
+      "price": {
+        "value": 48000,
+        "currency": "INR",
+        "as_of": "2025-01-27T10:00:00Z"
+      },
+      "availability": "in_stock",
+      "why_it_fits": [
+        "Good fit for travel_vlogging",
+        "Has video_resolution: 4K",
+        "Has image_stabilization: high"
+      ],
+      "tradeoffs": [
+        "Weight information not available"
+      ],
+      "confidence": "medium",
+      "proof": ["body_html"]
+    }
+  ],
+  "comparison": null,
+  "errors": []
+}
+

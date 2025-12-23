@@ -1,0 +1,269 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Semantic IA Shopping Assistant Schema",
+  "definitions": {
+    "ProductSemanticProfile": {
+      "type": "object",
+      "required": ["product_id", "title", "category", "availability", "key_attributes"],
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "description": "Shopify product ID"
+        },
+        "title": {
+          "type": "string",
+          "description": "Product title"
+        },
+        "category": {
+          "type": "string",
+          "description": "Product category/type"
+        },
+        "price": {
+          "type": ["object", "null"],
+          "properties": {
+            "value": {
+              "type": "number",
+              "description": "Price value"
+            },
+            "currency": {
+              "type": "string",
+              "default": "INR",
+              "description": "Currency code"
+            },
+            "as_of": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Timestamp when price was fetched"
+            }
+          }
+        },
+        "availability": {
+          "type": "string",
+          "enum": ["in_stock", "out_of_stock", "unknown"],
+          "description": "Product availability status"
+        },
+        "key_attributes": {
+          "type": "object",
+          "description": "Extracted product attributes. Values can be strings, numbers, or 'unknown'",
+          "additionalProperties": true,
+          "examples": {
+            "resolution": "4K",
+            "sensor_size": "1/2.3 inch",
+            "zoom": "10x",
+            "low_light_performance": "high",
+            "battery_life": "unknown",
+            "weight_grams": 450
+          }
+        },
+        "use_case_fit": {
+          "type": "object",
+          "description": "How well this product fits specific use cases",
+          "properties": {
+            "travel_vlogging": {
+              "type": "string",
+              "enum": ["high", "medium", "low", "unknown"],
+              "description": "Fit for travel vlogging use case"
+            },
+            "beginner_photography": {
+              "type": "string",
+              "enum": ["high", "medium", "low", "unknown"],
+              "description": "Fit for beginner photography use case"
+            },
+            "low_light_events": {
+              "type": "string",
+              "enum": ["high", "medium", "low", "unknown"],
+              "description": "Fit for low light events use case"
+            }
+          }
+        },
+        "proof": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Source fields from Shopify that were used to extract attributes (e.g., ['title', 'body_html', 'tags'])"
+        }
+      }
+    },
+    "UserIntent": {
+      "type": "object",
+      "properties": {
+        "purpose": {
+          "type": ["string", "null"],
+          "enum": ["travel_vlogging", "beginner_photography", "low_light_events", null],
+          "description": "Primary use case purpose"
+        },
+        "budget": {
+          "type": ["object", "null"],
+          "properties": {
+            "min": {
+              "type": ["number", "null"]
+            },
+            "max": {
+              "type": ["number", "null"]
+            },
+            "currency": {
+              "type": "string",
+              "default": "INR"
+            }
+          }
+        },
+        "category": {
+          "type": ["string", "null"]
+        },
+        "key_attributes": {
+          "type": "object",
+          "description": "Desired attributes with weights or values",
+          "additionalProperties": true
+        },
+        "comparison_request": {
+          "type": ["array", "null"],
+          "items": {
+            "type": "string"
+          },
+          "description": "Product IDs to compare, if any"
+        }
+      }
+    },
+    "Recommendation": {
+      "type": "object",
+      "required": ["product_id", "title", "availability", "why_it_fits", "tradeoffs", "confidence", "proof"],
+      "properties": {
+        "product_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "price": {
+          "type": ["object", "null"],
+          "properties": {
+            "value": {
+              "type": "number"
+            },
+            "currency": {
+              "type": "string",
+              "default": "INR"
+            },
+            "as_of": {
+              "type": "string",
+              "format": "date-time"
+            }
+          }
+        },
+        "availability": {
+          "type": "string",
+          "enum": ["in_stock", "out_of_stock", "unknown"]
+        },
+        "why_it_fits": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Bullet points explaining why this product fits, tied ONLY to known attributes"
+        },
+        "tradeoffs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tradeoffs or limitations. Can include 'unknown' if information is missing"
+        },
+        "confidence": {
+          "type": "string",
+          "enum": ["high", "medium", "low"]
+        },
+        "proof": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Which Shopify fields were used to extract this information"
+        }
+      }
+    },
+    "Comparison": {
+      "type": "object",
+      "properties": {
+        "product_a": {
+          "$ref": "#/definitions/Recommendation"
+        },
+        "product_b": {
+          "$ref": "#/definitions/Recommendation"
+        },
+        "differences": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Only grounded differences based on known attributes"
+        },
+        "best_for": {
+          "type": "object",
+          "properties": {
+            "a": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Use cases where product A is better"
+            },
+            "b": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Use cases where product B is better"
+            }
+          }
+        }
+      }
+    },
+    "AgentResponse": {
+      "type": "object",
+      "required": ["mode", "intent", "recommendations", "errors"],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["clarify", "recommend", "compare", "fail"]
+        },
+        "intent": {
+          "$ref": "#/definitions/UserIntent"
+        },
+        "clarifying_question": {
+          "type": ["object", "null"],
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Recommendation"
+          },
+          "maxItems": 3,
+          "description": "Top 2-3 recommendations"
+        },
+        "comparison": {
+          "type": ["object", "null"],
+          "$ref": "#/definitions/Comparison"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
+

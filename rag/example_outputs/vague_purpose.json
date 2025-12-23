@@ -1,0 +1,23 @@
+{
+  "mode": "clarify",
+  "intent": {
+    "purpose": null,
+    "budget": null,
+    "category": "Camera",
+    "key_attributes": {},
+    "comparison_request": null
+  },
+  "clarifying_question": {
+    "text": "What will you primarily use this camera for?",
+    "options": [
+      "Travel vlogging",
+      "Beginner photography",
+      "Low light events",
+      "Something else"
+    ]
+  },
+  "recommendations": [],
+  "comparison": null,
+  "errors": []
+}
+

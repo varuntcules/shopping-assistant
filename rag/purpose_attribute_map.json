@@ -1,0 +1,200 @@
+{
+  "travel_vlogging": {
+    "top_attributes": [
+      "weight_grams",
+      "size_dimensions",
+      "image_stabilization",
+      "video_resolution",
+      "battery_life",
+      "low_light_performance",
+      "zoom_range",
+      "audio_quality"
+    ],
+    "attribute_weights": {
+      "weight_grams": 0.2,
+      "size_dimensions": 0.15,
+      "image_stabilization": 0.15,
+      "video_resolution": 0.15,
+      "battery_life": 0.1,
+      "low_light_performance": 0.1,
+      "zoom_range": 0.1,
+      "audio_quality": 0.05
+    },
+    "recommended_clarifying_questions": [
+      "What's your budget range for a travel vlogging camera?",
+      "How important is portability vs. video quality?",
+      "Do you need built-in audio recording, or will you use external mics?",
+      "Will you be shooting mostly during the day or also in low light?",
+      "Do you need zoom capability, or is a fixed lens sufficient?"
+    ],
+    "attribute_vocab": {
+      "weight_grams": {
+        "type": "number",
+        "units": "grams",
+        "ranges": {
+          "light": [0, 400],
+          "medium": [400, 800],
+          "heavy": [800, null]
+        }
+      },
+      "size_dimensions": {
+        "type": "string",
+        "values": ["compact", "medium", "large", "unknown"]
+      },
+      "image_stabilization": {
+        "type": "string",
+        "values": ["high", "medium", "low", "none", "unknown"]
+      },
+      "video_resolution": {
+        "type": "string",
+        "values": ["4K", "1080p", "720p", "unknown"]
+      },
+      "battery_life": {
+        "type": "string",
+        "values": ["long", "medium", "short", "unknown"]
+      },
+      "low_light_performance": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"]
+      },
+      "zoom_range": {
+        "type": "string",
+        "values": ["wide", "standard", "telephoto", "none", "unknown"]
+      },
+      "audio_quality": {
+        "type": "string",
+        "values": ["high", "medium", "low", "none", "unknown"]
+      }
+    }
+  },
+  "beginner_photography": {
+    "top_attributes": [
+      "ease_of_use",
+      "auto_mode_quality",
+      "price",
+      "learning_features",
+      "image_quality",
+      "battery_life",
+      "durability",
+      "connectivity"
+    ],
+    "attribute_weights": {
+      "ease_of_use": 0.2,
+      "auto_mode_quality": 0.15,
+      "price": 0.15,
+      "learning_features": 0.15,
+      "image_quality": 0.1,
+      "battery_life": 0.1,
+      "durability": 0.1,
+      "connectivity": 0.05
+    },
+    "recommended_clarifying_questions": [
+      "What's your budget for a beginner camera?",
+      "What will you primarily photograph? (portraits, landscapes, sports, etc.)",
+      "Do you want something you can grow into, or just point-and-shoot simplicity?",
+      "Are you interested in learning manual controls, or prefer automatic modes?",
+      "Do you need Wi-Fi/Bluetooth for easy photo sharing?"
+    ],
+    "attribute_vocab": {
+      "ease_of_use": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"]
+      },
+      "auto_mode_quality": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"]
+      },
+      "price": {
+        "type": "number",
+        "units": "INR"
+      },
+      "learning_features": {
+        "type": "string",
+        "values": ["high", "medium", "low", "none", "unknown"]
+      },
+      "image_quality": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"]
+      },
+      "battery_life": {
+        "type": "string",
+        "values": ["long", "medium", "short", "unknown"]
+      },
+      "durability": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"]
+      },
+      "connectivity": {
+        "type": "string",
+        "values": ["wifi_bluetooth", "wifi", "bluetooth", "none", "unknown"]
+      }
+    }
+  },
+  "low_light_events": {
+    "top_attributes": [
+      "low_light_performance",
+      "sensor_size",
+      "aperture",
+      "iso_range",
+      "image_stabilization",
+      "battery_life",
+      "flash_capability",
+      "noise_performance"
+    ],
+    "attribute_weights": {
+      "low_light_performance": 0.25,
+      "sensor_size": 0.2,
+      "aperture": 0.15,
+      "iso_range": 0.1,
+      "image_stabilization": 0.1,
+      "battery_life": 0.1,
+      "flash_capability": 0.05,
+      "noise_performance": 0.05
+    },
+    "recommended_clarifying_questions": [
+      "What's your budget for a low-light camera?",
+      "What type of events will you shoot? (concerts, weddings, indoor sports, etc.)",
+      "Do you need a built-in flash, or will you use external lighting?",
+      "How important is image quality vs. portability?",
+      "Will you be shooting moving subjects or mostly still scenes?"
+    ],
+    "attribute_vocab": {
+      "low_light_performance": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"]
+      },
+      "sensor_size": {
+        "type": "string",
+        "values": ["full_frame", "aps_c", "micro_four_thirds", "1_inch", "smaller", "unknown"]
+      },
+      "aperture": {
+        "type": "string",
+        "values": ["f1.4", "f1.8", "f2.0", "f2.8", "f3.5", "f4.0", "larger", "unknown"],
+        "description": "Lower f-number = better for low light"
+      },
+      "iso_range": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"],
+        "description": "Higher ISO capability = better for low light"
+      },
+      "image_stabilization": {
+        "type": "string",
+        "values": ["high", "medium", "low", "none", "unknown"]
+      },
+      "battery_life": {
+        "type": "string",
+        "values": ["long", "medium", "short", "unknown"]
+      },
+      "flash_capability": {
+        "type": "string",
+        "values": ["built_in", "external_only", "none", "unknown"]
+      },
+      "noise_performance": {
+        "type": "string",
+        "values": ["high", "medium", "low", "unknown"],
+        "description": "How well the camera handles noise at high ISO"
+      }
+    }
+  }
+}
+
