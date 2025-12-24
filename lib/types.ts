@@ -140,5 +140,10 @@ export interface RetailAgentResponse {
     };
   };
   confidence: number; // 0-1 confidence score based on state completeness
+  debug?: {
+    modelUsed?: string;
+    searchError?: string;
+    [key: string]: unknown;
+  };
 }
 
