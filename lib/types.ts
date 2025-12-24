@@ -32,6 +32,19 @@ export interface AssistantUIModel {
   layout: "grid";
   title: string;
   mode?: UIMode; // Optional mode to distinguish educational/follow-up turns
+  retailUI?: {
+    type: "question" | "recommendation" | "comparison" | "checkout" | "confirmation" | "recovery";
+    chips?: string[];
+    comparison?: {
+      productA: RetailProduct;
+      productB: RetailProduct;
+      tradeoffs: string[];
+    };
+    checkout?: {
+      items: RetailProduct[];
+      total: number;
+    };
+  };
 }
 
 // Full assistant response
@@ -84,5 +97,50 @@ export interface ShopifySearchParams {
 export interface AssistantRequestBody {
   message: string;
   history?: ChatMessage[];
+  conversationState?: RetailConversationState; // For retail agent
+}
+
+// Retail conversation state
+export interface RetailConversationState {
+  intent: string | null;
+  primary_use: string | null;
+  experience_level: string | null;
+  budget_range: string | null;
+  constraints_locked: boolean;
+}
+
+// Retail product (from Supabase)
+export interface RetailProduct {
+  id: string;
+  name: string;
+  category: "camera" | "lens" | "microphone" | "tripod" | "stabilization" | "other";
+  description: string;
+  price: number;
+  currency: string;
+  imageUrl?: string;
+  beginnerFriendly?: boolean;
+  ratings?: number;
+  reviewCount?: number;
+  compatibility?: string;
+}
+
+// Retail agent response
+export interface RetailAgentResponse {
+  assistantMessage: string;
+  state: RetailConversationState;
+  products?: RetailProduct[];
+  ui: {
+    type: "question" | "recommendation" | "comparison" | "checkout" | "confirmation" | "recovery";
+    chips?: string[];
+    comparison?: {
+      productA: RetailProduct;
+      productB: RetailProduct;
+      tradeoffs: string[];
+    };
+    checkout?: {
+      items: RetailProduct[];
+      total: number;
+    };
+  };
 }
 

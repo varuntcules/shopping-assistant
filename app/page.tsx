@@ -3,12 +3,19 @@
 import { useState, useRef, useEffect, FormEvent } from "react";
 import Chat from "@/components/Chat";
 import VoiceInput from "@/components/VoiceInput";
-import { ChatMessage, AssistantResponse } from "@/lib/types";
+import { ChatMessage, RetailAgentResponse, RetailConversationState } from "@/lib/types";
 
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [conversationState, setConversationState] = useState<RetailConversationState>({
+    intent: null,
+    primary_use: null,
+    experience_level: null,
+    budget_range: null,
+    constraints_locked: false,
+  });
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -33,6 +40,19 @@ export default function Home() {
     textareaRef.current?.focus();
   };
 
+  const handleChipSelect = (chip: string) => {
+    // Set the chip text as input and submit
+    setInputValue(chip);
+    // Auto-submit after a brief delay
+    setTimeout(() => {
+      const form = document.querySelector('form');
+      if (form) {
+        const event = new Event('submit', { bubbles: true, cancelable: true });
+        form.dispatchEvent(event);
+      }
+    }, 100);
+  };
+
   const handleSubmit = async (e?: FormEvent) => {
     e?.preventDefault();
     
@@ -46,31 +66,53 @@ export default function Home() {
     setIsLoading(true);
 
     try {
-      const response = await fetch("/api/assistant", {
+      const response = await fetch("/api/assistant/retail", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message,
           history: messages,
+          conversationState,
         }),
       });
 
-      const data: AssistantResponse = await response.json();
+      const data: RetailAgentResponse = await response.json();
 
-      // Add assistant message with products
+      // Update conversation state
+      setConversationState(data.state);
+
+      // Convert RetailProduct to ProductCard for compatibility
+      const products = data.products?.map((p) => ({
+        id: p.id,
+        title: p.name,
+        handle: p.id,
+        vendor: "Retail Store",
+        productType: p.category,
+        price: {
+          amount: String(p.price),
+          currencyCode: p.currency || "INR",
+        },
+        image: {
+          url: p.imageUrl || "/placeholder-product.png",
+          altText: p.name || null,
+        },
+        url: `#product-${p.id}`,
+      })) || [];
+
+      // Add assistant message with products and UI
       const assistantMessage: ChatMessage = {
         role: "assistant",
         content: data.assistantMessage,
-        products: data.products,
-        ui: data.ui,
+        products,
+        ui: {
+          layout: "grid",
+          title: data.ui.type === "recommendation" ? "Recommended Products" : "",
+          mode: data.ui.type === "question" ? "education" : "shopping",
+          retailUI: data.ui, // Store retail-specific UI data
+        },
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
-
-      // Log debug info to console (helpful for development)
-      if (data.debug) {
-        console.log("[Debug]", data.debug);
-      }
     } catch (error) {
       console.error("Error:", error);
       
@@ -111,8 +153,8 @@ export default function Home() {
               </svg>
             </div>
             <div>
-              <h1 className="text-xl font-bold text-white">Voice Shopping Assistant</h1>
-              <p className="text-xs text-slate-400">Speak or type to find products</p>
+              <h1 className="text-xl font-bold text-white">Camera & Creator Gear Assistant</h1>
+              <p className="text-xs text-slate-400">Your friendly store associate for camera gear</p>
             </div>
           </div>
           
@@ -129,7 +171,11 @@ export default function Home() {
           ref={chatContainerRef}
           className="flex-1 overflow-y-auto px-4 scroll-smooth"
         >
-          <Chat messages={messages} isLoading={isLoading} />
+          <Chat 
+            messages={messages} 
+            isLoading={isLoading}
+            onChipSelect={handleChipSelect}
+          />
         </div>
 
         {/* Input area */}
@@ -146,7 +192,7 @@ export default function Home() {
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Tell me what you're looking for... I'll help you find the perfect match"
+                placeholder="Tell me what you're looking for... I'll help you find the perfect camera gear"
                 disabled={isLoading}
                 rows={1}
                 className="w-full bg-white/5 border border-white/10 rounded-2xl px-4 py-3 pr-12
@@ -193,10 +239,10 @@ export default function Home() {
           {messages.length === 0 && (
             <div className="mt-4 flex flex-wrap gap-2 justify-center">
               {[
-                "I need running shoes",
-                "Help me pick a laptop",
-                "What should I look for in headphones?",
-                "Find me a gift under ₹2000",
+                "I need a camera for travel vlogging",
+                "Help me pick a lens",
+                "What should I look for in a microphone?",
+                "Find me a camera under ₹50000",
               ].map((suggestion) => (
                 <button
                   key={suggestion}

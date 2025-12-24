@@ -2,13 +2,18 @@
 
 import { ChatMessage, UIMode } from "@/lib/types";
 import ProductGrid from "./ProductGrid";
+import QuickChips from "./QuickChips";
+import ProductComparison from "./ProductComparison";
+import CheckoutView from "./CheckoutView";
+import { useState } from "react";
 
 interface ChatProps {
   messages: ChatMessage[];
   isLoading?: boolean;
+  onChipSelect?: (chip: string) => void;
 }
 
-export default function Chat({ messages, isLoading }: ChatProps) {
+export default function Chat({ messages, isLoading, onChipSelect }: ChatProps) {
   return (
     <div className="flex flex-col gap-6 py-6">
       {messages.length === 0 && !isLoading && (
@@ -35,6 +40,8 @@ export default function Chat({ messages, isLoading }: ChatProps) {
               products={message.products}
               uiTitle={message.ui?.title}
               mode={message.ui?.mode}
+              retailUI={message.ui?.retailUI}
+              onChipSelect={onChipSelect}
             />
           )}
         </div>
@@ -82,17 +89,27 @@ function AssistantMessage({
   content, 
   products,
   uiTitle,
-  mode = "shopping"
+  mode = "shopping",
+  retailUI,
+  onChipSelect
 }: { 
   content: string; 
   products?: ChatMessage["products"];
   uiTitle?: string;
   mode?: UIMode;
+  retailUI?: ChatMessage["ui"]["retailUI"];
+  onChipSelect?: (chip: string) => void;
 }) {
   const isEducationMode = mode === "education" || (!products || products.length === 0);
   
   // Split content by double newlines to render paragraphs properly
   const paragraphs = content.split(/\n\n+/).filter(p => p.trim());
+  
+  const handleChipClick = (chip: string) => {
+    if (onChipSelect) {
+      onChipSelect(chip);
+    }
+  };
   
   return (
     <div className="flex items-start gap-4">
@@ -139,6 +156,34 @@ function AssistantMessage({
           </div>
         </div>
         
+        {/* Quick chips for selection */}
+        {retailUI?.chips && retailUI.chips.length > 0 && (
+          <QuickChips 
+            options={retailUI.chips} 
+            onSelect={handleChipClick}
+          />
+        )}
+        
+        {/* Product comparison */}
+        {retailUI?.comparison && retailUI.comparison.productA && retailUI.comparison.productB && (
+          <ProductComparison
+            productA={retailUI.comparison.productA}
+            productB={retailUI.comparison.productB}
+            tradeoffs={retailUI.comparison.tradeoffs}
+          />
+        )}
+        
+        {/* Checkout view */}
+        {retailUI?.checkout && (
+          <CheckoutView
+            items={retailUI.checkout.items}
+            total={retailUI.checkout.total}
+            onConfirm={() => console.log("Order confirmed")}
+            onCancel={() => console.log("Order cancelled")}
+          />
+        )}
+        
+        {/* Product grid */}
         {products && products.length > 0 && (
           <ProductGrid products={products} title={uiTitle} />
         )}
