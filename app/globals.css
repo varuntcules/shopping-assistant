@@ -8,14 +8,20 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-body: var(--font-figtree);
+  --font-title: var(--font-eb-garamond);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+}
+
+/* Title/Heading styles with EB Garamond italic */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-title), serif;
+  font-style: italic;
 }
 
 /* Custom Animations */
