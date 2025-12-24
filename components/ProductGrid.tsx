@@ -9,17 +9,10 @@ interface ProductGridProps {
   title?: string;
 }
 
-function formatPrice(amount: string, currencyCode: string): string {
+function formatPrice(amount: string): string {
   const num = parseFloat(amount);
-  
-  if (currencyCode === "INR") {
-    return `₹${num.toLocaleString("en-IN")}`;
-  }
-  
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currencyCode,
-  }).format(num);
+  // Always display in INR
+  return `₹${num.toLocaleString("en-IN")}`;
 }
 
 function ProductImage({
@@ -80,7 +73,7 @@ export default function ProductGrid({ products, title }: ProductGridProps) {
               
               {/* Price badge */}
               <div className="absolute top-3 right-3 bg-black/70 backdrop-blur-sm text-white text-sm font-bold px-3 py-1.5 rounded-full">
-                {formatPrice(product.price.amount, product.price.currencyCode)}
+                {formatPrice(product.price.amount)}
               </div>
             </div>
             

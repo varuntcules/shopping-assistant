@@ -168,15 +168,18 @@ function deriveExperiencePriceFilters(
   const level = experience.toLowerCase();
 
   if (level.includes("beginner")) {
-    return { maxPrice: 1200 };
+    // Keep beginner range narrow to surface entry-level options
+    return { maxPrice: 800 };
   }
 
   if (level.includes("intermediate")) {
-    return { minPrice: 800, maxPrice: 2500 };
+    // Mid-tier bracket
+    return { minPrice: 800, maxPrice: 2000 };
   }
 
   if (level.includes("advanced")) {
-    return { minPrice: 1500 };
+    // Push toward higher-end gear
+    return { minPrice: 2000 };
   }
 
   return {};
@@ -292,13 +295,14 @@ CONVERSATION STATE RULES:
 PERSONALITY:
 - Warm, polite, conversational
 - Always acknowledge what the user said before asking/responding
+- CRITICAL: Every acknowledgment MUST be immediately followed by ONE clarifying question while constraints_locked is false. Acknowledgment-only responses are not allowed in early turns.
 - Ask only ONE question at a time
 - Never jump straight into products
 - Avoid technical jargon unless asked
 - Confident, calm, non-salesy
 
 FLOW:
-1. If state is incomplete → ask ONE clarifying question
+1. Always acknowledge what the user said, then immediately ask ONE clarifying question if state is incomplete (constraints_locked is false)
 2. If constraints_locked → fetch products and recommend
 3. If user agrees to buy → show checkout
 4. If no products found → recovery message with suggestions
@@ -430,6 +434,20 @@ Analyze the message, update state (at most ONE field), and generate response:`;
         newState.budget_range = extractedBudget;
         console.log(`[RetailAgent] Extracted budget from user message: ${extractedBudget}`);
       }
+    }
+
+    // Ensure a clarifying question exists whenever constraints are not locked
+    if (!newState.constraints_locked && (!parsed.question || parsed.question.trim() === "")) {
+      if (!newState.intent) {
+        parsed.question = "What will you primarily use this for?";
+      } else if (!newState.budget_range) {
+        parsed.question = "What's your budget range?";
+      } else if (!newState.experience_level && !newState.primary_use) {
+        parsed.question = "What's your experience level with camera gear?";
+      } else {
+        parsed.question = "Could you tell me a bit more about what you're looking for?";
+      }
+      parsed.uiType = "question";
     }
 
     // Calculate confidence score
@@ -593,8 +611,23 @@ Analyze the message, update state (at most ONE field), and generate response:`;
         const experienceFilters = Object.keys(budgetFilters).length
           ? {}
           : deriveExperiencePriceFilters(newState.experience_level);
-        const priceFilters =
-          Object.keys(budgetFilters).length > 0 ? budgetFilters : experienceFilters;
+
+        // Narrow the band if only one side of the budget is provided to get more variation
+        const priceFilters = (() => {
+          if (Object.keys(budgetFilters).length > 0) {
+            const { minPrice, maxPrice } = budgetFilters;
+            // If only max provided, set a floor to half that budget to focus results
+            if (maxPrice !== undefined && minPrice === undefined) {
+              return { minPrice: Math.max(0, maxPrice * 0.5), maxPrice };
+            }
+            // If only min provided, set a soft ceiling to 1.5x to avoid showing everything
+            if (minPrice !== undefined && maxPrice === undefined) {
+              return { minPrice, maxPrice: minPrice * 1.5 };
+            }
+            return budgetFilters;
+          }
+          return experienceFilters;
+        })();
         
         if (category === "all") {
           // Search multiple categories
@@ -674,7 +707,13 @@ Analyze the message, update state (at most ONE field), and generate response:`;
     }
 
     // Ensure products are returned if we have them and constraints are locked
-    const finalProducts = (newState.constraints_locked && products.length > 0) ? products : undefined;
+    const normalizedProducts =
+      newState.constraints_locked && products.length > 0
+        ? products.map((p) => ({
+            ...p,
+            currency: "INR", // normalize currency to INR for display/calculations
+          }))
+        : undefined;
     
     // If constraints are locked but no products, log a warning
     if (newState.constraints_locked && products.length === 0) {
@@ -684,7 +723,7 @@ Analyze the message, update state (at most ONE field), and generate response:`;
     const agentResponse: AgentResponse = {
       message,
       state: newState,
-      products: finalProducts,
+      products: normalizedProducts,
       ui: uiResponse,
       shouldFetchProducts: parsed.shouldFetchProducts || false,
       confidence,

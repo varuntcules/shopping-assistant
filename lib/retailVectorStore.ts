@@ -10,6 +10,10 @@ import { Pool, PoolClient } from "pg";
 // Singleton connection pool
 let pool: Pool | null = null;
 
+// FX rate for USD -> INR normalization (can be overridden via env)
+const USD_TO_INR_RATE =
+  Number.parseFloat(process.env.USD_TO_INR_RATE || "83.5") || 83.5;
+
 function getPool(): Pool | null {
   const databaseUrl =
     process.env.DATABASE_URL || process.env.SUPABASE_DB_URL || "";
@@ -89,6 +93,13 @@ export async function searchRetailProducts(
     params.push(queryVectorLiteral);
     const vectorParamIndex = paramIndex++;
 
+    // USD→INR rate parameter for normalization
+    const usdRateParamIndex = paramIndex++;
+    params.push(USD_TO_INR_RATE);
+
+    // Normalized price expression (always INR)
+    const priceExpr = `CASE WHEN COALESCE(p.currency, 'INR') = 'USD' THEN p.price * $${usdRateParamIndex} ELSE p.price END`;
+
     // Category filter - use ILIKE for flexible matching
     // Map our categories to product_type patterns
     const categoryPatterns: Record<string, string> = {
@@ -110,13 +121,13 @@ export async function searchRetailProducts(
 
     // Price filters
     if (minPrice !== undefined) {
-      whereClauses.push(`p.price >= $${paramIndex}`);
+      whereClauses.push(`${priceExpr} >= $${paramIndex}`);
       params.push(minPrice);
       paramIndex++;
     }
 
     if (maxPrice !== undefined) {
-      whereClauses.push(`p.price <= $${paramIndex}`);
+      whereClauses.push(`${priceExpr} <= $${paramIndex}`);
       params.push(maxPrice);
       paramIndex++;
     }
@@ -132,7 +143,7 @@ export async function searchRetailProducts(
       p.title as name,
       p.product_type as category,
       COALESCE(p.description, '') as description,
-      p.price,
+      ${priceExpr} as price,
       COALESCE(p.currency, 'INR') as currency,
       p.image_url as image_url
     `;

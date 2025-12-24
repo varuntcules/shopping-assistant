@@ -90,7 +90,7 @@ export default function Home() {
         productType: p.category,
         price: {
           amount: String(p.price),
-          currencyCode: p.currency || "INR",
+          currencyCode: "INR",
         },
         image: {
         url: p.imageUrl || "/placeholder-product.svg",

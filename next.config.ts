@@ -20,6 +20,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "www.joby.com" },
       { protocol: "https", hostname: "www.manfrotto.com" },
       { protocol: "https", hostname: "www.nanlite.com" },
+      { protocol: "https", hostname: "www.nikonusa.com" },
       { protocol: "https", hostname: "www.nikon.com" },
       { protocol: "https", hostname: "www.panasonic.com" },
       { protocol: "https", hostname: "www.peakdesign.com" },
