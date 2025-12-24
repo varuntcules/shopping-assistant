@@ -222,3 +222,4 @@ MODE=baseline tsx src/tests/run_eval.ts
 - ✅ Controlled vocabulary (high/medium/low/unknown)
 - ✅ Never invents product specs
 
+

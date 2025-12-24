@@ -47,15 +47,11 @@ const LENS_SPECS_TABLE = "lens_specs";
 export interface RetailProduct {
   id: string;
   name: string;
-  category: "camera" | "lens" | "microphone" | "tripod" | "stabilization" | "other";
+  category: string; // Product type from DB (e.g., "Mirrorless Camera", "Lens", etc.)
   description: string;
   price: number;
   currency: string;
   imageUrl?: string;
-  beginnerFriendly?: boolean;
-  ratings?: number;
-  reviewCount?: number;
-  compatibility?: string;
 }
 
 /**
@@ -93,10 +89,24 @@ export async function searchRetailProducts(
     params.push(queryVectorLiteral);
     const vectorParamIndex = paramIndex++;
 
-    // Category filter
-    whereClauses.push(`p.category = $${paramIndex}`);
-    params.push(category);
-    paramIndex++;
+    // Category filter - use ILIKE for flexible matching
+    // Map our categories to product_type patterns
+    const categoryPatterns: Record<string, string> = {
+      camera: "%Camera%",
+      lens: "%Lens%",
+      microphone: "%Microphone%",
+      tripod: "%Tripod%",
+      stabilization: "%Stabiliz%",
+      lighting: "%Light%",
+      other: "%",
+    };
+    
+    const pattern = categoryPatterns[category] || "%";
+    if (pattern !== "%") {
+      whereClauses.push(`p.product_type ILIKE $${paramIndex}`);
+      params.push(pattern);
+      paramIndex++;
+    }
 
     // Price filters
     if (minPrice !== undefined) {
@@ -116,18 +126,15 @@ export async function searchRetailProducts(
 
     // Build JOIN for specs
     let joinClause = "";
+    // Note: products_dummy table uses 'title' not 'name', and 'product_type' not 'category'
     let selectFields = `
       p.id,
-      p.name,
-      p.category,
+      p.title as name,
+      p.product_type as category,
       COALESCE(p.description, '') as description,
       p.price,
       COALESCE(p.currency, 'INR') as currency,
-      p.image_url as image_url,
-      COALESCE(p.beginner_friendly, false) as beginner_friendly,
-      p.ratings,
-      p.review_count as review_count,
-      p.compatibility
+      p.image_url as image_url
     `;
 
     if (category === "camera") {
@@ -150,16 +157,16 @@ export async function searchRetailProducts(
 
     try {
       result = await client.query(sql, params);
-    } catch (vectorError: any) {
+    } catch (vectorError: unknown) {
       // Fallback to text search
-      console.warn("[RetailVectorStore] Vector search failed, using text search");
+      console.warn("[RetailVectorStore] Vector search failed, using text search:", vectorError);
       const textParams = params.slice(0, -1); // Remove limit
       const textSql = `
         SELECT ${selectFields}
         FROM ${PRODUCTS_TABLE} p
         ${joinClause}
         ${whereSql}
-        ORDER BY p.name, p.price
+        ORDER BY p.title, p.price
         LIMIT $${textParams.length + 1}
       `;
       textParams.push(limit);
@@ -168,16 +175,12 @@ export async function searchRetailProducts(
 
     return result.rows.map((row) => ({
       id: String(row.id),
-      name: row.name,
-      category: row.category,
+      name: row.name || row.title,
+      category: row.category || row.product_type || "other",
       description: row.description || "",
       price: Number(row.price),
       currency: row.currency || "INR",
       imageUrl: row.image_url,
-      beginnerFriendly: row.beginner_friendly === true || row.beginner_friendly === "true",
-      ratings: row.ratings ? Number(row.ratings) : undefined,
-      reviewCount: row.review_count ? Number(row.review_count) : undefined,
-      compatibility: row.compatibility,
     }));
   } catch (error) {
     console.error("[RetailVectorStore] Error searching products:", error);

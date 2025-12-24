@@ -209,3 +209,4 @@ All chunks must include:
 - Always include `source_fields` to track which Shopify fields were used
 - Chunks are created during product sync/enrichment, not at query time
 
+

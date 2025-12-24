@@ -9,32 +9,6 @@ interface ProductGridProps {
   title?: string;
 }
 
-// Product image component with error handling
-function ProductImage({ src, alt }: { src: string; alt: string }) {
-  const [hasError, setHasError] = useState(false);
-  
-  if (hasError || !src || src === "/placeholder-product.png") {
-    return (
-      <div className="absolute inset-0 flex items-center justify-center">
-        <svg className="w-16 h-16 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-        </svg>
-      </div>
-    );
-  }
-  
-  return (
-    <Image
-      src={src}
-      alt={alt}
-      fill
-      className="object-cover group-hover:scale-105 transition-transform duration-500"
-      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-      onError={() => setHasError(true)}
-    />
-  );
-}
-
 function formatPrice(amount: string, currencyCode: string): string {
   const num = parseFloat(amount);
   
@@ -46,6 +20,29 @@ function formatPrice(amount: string, currencyCode: string): string {
     style: "currency",
     currency: currencyCode,
   }).format(num);
+}
+
+function ProductImage({
+  src,
+  alt,
+}: {
+  src: string | null | undefined;
+  alt: string;
+}) {
+  const [imageSrc, setImageSrc] = useState(
+    src && src !== "/placeholder-product.svg" ? src : "/placeholder-product.svg"
+  );
+
+  return (
+    <Image
+      src={imageSrc}
+      alt={alt}
+      fill
+      className="object-cover group-hover:scale-105 transition-transform duration-500"
+      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+      onError={() => setImageSrc("/placeholder-product.svg")}
+    />
+  );
 }
 
 export default function ProductGrid({ products, title }: ProductGridProps) {
@@ -76,9 +73,9 @@ export default function ProductGrid({ products, title }: ProductGridProps) {
           >
             {/* Product Image */}
             <div className="relative aspect-square bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden">
-              <ProductImage 
-                src={product.image.url} 
-                alt={product.image.altText || product.title} 
+              <ProductImage
+                src={product.image.url}
+                alt={product.image.altText || product.title}
               />
               
               {/* Price badge */}
@@ -119,4 +116,3 @@ export default function ProductGrid({ products, title }: ProductGridProps) {
     </div>
   );
 }
-

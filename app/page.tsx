@@ -93,7 +93,7 @@ export default function Home() {
           currencyCode: p.currency || "INR",
         },
         image: {
-          url: p.imageUrl || "/placeholder-product.png",
+        url: p.imageUrl || "/placeholder-product.svg",
           altText: p.name || null,
         },
         url: `#product-${p.id}`,
@@ -110,6 +110,7 @@ export default function Home() {
           mode: data.ui.type === "question" ? "education" : "shopping",
           retailUI: data.ui, // Store retail-specific UI data
         },
+        confidence: data.confidence, // Include confidence score
       };
 
       setMessages((prev) => [...prev, assistantMessage]);

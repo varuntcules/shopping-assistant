@@ -55,7 +55,6 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
   const [isListening, setIsListening] = useState(false);
   const [isSupported, setIsSupported] = useState(true);
   const [interimText, setInterimText] = useState("");
-  const [permissionDenied, setPermissionDenied] = useState(false);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const finalTranscriptRef = useRef("");
 
@@ -103,11 +102,6 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
       console.error("[Voice] Recognition error:", event.error);
       setIsListening(false);
       setInterimText("");
-      
-      // Handle permission denied error
-      if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-        setPermissionDenied(true);
-      }
     };
 
     recognition.onend = () => {
@@ -154,18 +148,6 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
         <span>Voice not supported in this browser</span>
-      </div>
-    );
-  }
-
-  if (permissionDenied) {
-    return (
-      <div className="flex items-center gap-2 text-amber-400/80 text-xs">
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-          <line x1="4" y1="4" x2="20" y2="20" strokeWidth={2} />
-        </svg>
-        <span>Microphone access denied</span>
       </div>
     );
   }

@@ -126,7 +126,7 @@ function mapToProductCard(node: ShopifyProductNode): ProductCard {
       currencyCode: node.priceRange.minVariantPrice.currencyCode,
     },
     image: {
-      url: node.featuredImage?.url || "/placeholder-product.png",
+    url: node.featuredImage?.url || "/placeholder-product.svg",
       altText: node.featuredImage?.altText || null,
     },
     url: `https://${SHOPIFY_STORE_DOMAIN}/products/${node.handle}`,

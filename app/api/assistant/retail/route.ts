@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         ui: {
           type: "recovery",
         },
+        confidence: 0,
       } as RetailAgentResponse);
     }
 
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
         currencyCode: p.currency || "INR",
       },
       image: {
-        url: p.imageUrl || "/placeholder-product.png",
+        url: p.imageUrl || "/placeholder-product.svg",
         altText: p.name || null,
       },
       url: `#product-${p.id}`,
@@ -98,6 +99,7 @@ export async function POST(request: NextRequest) {
           total: response.ui.checkout.total,
         } : undefined,
       },
+      confidence: response.confidence,
     };
 
     console.log(`[RetailAPI] Response type: ${response.ui.type}, Products: ${products.length}`);
@@ -119,6 +121,7 @@ export async function POST(request: NextRequest) {
       ui: {
         type: "recovery",
       },
+      confidence: 0,
     } as RetailAgentResponse);
   }
 }

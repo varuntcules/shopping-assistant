@@ -130,7 +130,7 @@ function recordToProductCard(record: ProductRecord, storeDomain: string): Produc
       currencyCode: record.currency,
     },
     image: {
-      url: record.imageUrl || "/placeholder-product.png",
+      url: record.imageUrl || "/placeholder-product.svg",
       altText: record.imageAlt || null, // Convert empty string back to null for UI
     },
     url: `https://${storeDomain}/products/${record.handle}`,

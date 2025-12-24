@@ -4,6 +4,7 @@ export interface ChatMessage {
   content: string;
   products?: ProductCard[];
   ui?: AssistantUIModel;
+  confidence?: number; // 0-1 confidence score (only for assistant messages)
 }
 
 // Product card for display
@@ -113,15 +114,11 @@ export interface RetailConversationState {
 export interface RetailProduct {
   id: string;
   name: string;
-  category: "camera" | "lens" | "microphone" | "tripod" | "stabilization" | "other";
+  category: string; // Product type from DB (e.g., "Mirrorless Camera", "Lens", etc.)
   description: string;
   price: number;
   currency: string;
   imageUrl?: string;
-  beginnerFriendly?: boolean;
-  ratings?: number;
-  reviewCount?: number;
-  compatibility?: string;
 }
 
 // Retail agent response
@@ -142,5 +139,6 @@ export interface RetailAgentResponse {
       total: number;
     };
   };
+  confidence: number; // 0-1 confidence score based on state completeness
 }
 

@@ -290,7 +290,7 @@ export function mapAdminProductToProductCard(product: AdminProduct): ProductCard
       currencyCode: (firstVariant?.currency_code ?? "INR").toUpperCase(),
     },
     image: {
-      url: firstImage?.src ?? "/placeholder-product.png",
+    url: firstImage?.src ?? "/placeholder-product.svg",
       altText: firstImage?.alt ?? null,
     },
     url: `https://${getStoreDomain()}/products/${product.handle}`,

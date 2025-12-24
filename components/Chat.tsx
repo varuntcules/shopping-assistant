@@ -41,6 +41,7 @@ export default function Chat({ messages, isLoading, onChipSelect }: ChatProps) {
               uiTitle={message.ui?.title}
               mode={message.ui?.mode}
               retailUI={message.ui?.retailUI}
+              confidence={message.confidence}
               onChipSelect={onChipSelect}
             />
           )}
@@ -91,6 +92,7 @@ function AssistantMessage({
   uiTitle,
   mode = "shopping",
   retailUI,
+  confidence,
   onChipSelect
 }: { 
   content: string; 
@@ -98,6 +100,7 @@ function AssistantMessage({
   uiTitle?: string;
   mode?: UIMode;
   retailUI?: ChatMessage["ui"]["retailUI"];
+  confidence?: number;
   onChipSelect?: (chip: string) => void;
 }) {
   const isEducationMode = mode === "education" || (!products || products.length === 0);
@@ -134,11 +137,27 @@ function AssistantMessage({
       
       <div className="flex-1 space-y-4">
         {/* Message bubble - styled differently for education mode */}
-        <div className={`backdrop-blur-sm rounded-2xl rounded-tl-sm p-4 ${
+        <div className={`backdrop-blur-sm rounded-2xl rounded-tl-sm p-4 relative ${
           isEducationMode 
             ? "bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20" 
             : "bg-white/5 border border-white/10"
         }`}>
+          {/* Confidence badge */}
+          {confidence !== undefined && (
+            <div className="absolute top-3 right-3">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
+                <div className={`w-1.5 h-1.5 rounded-full ${
+                  confidence >= 0.7 ? "bg-emerald-400" :
+                  confidence >= 0.4 ? "bg-amber-400" :
+                  "bg-red-400"
+                }`} />
+                <span className="text-xs font-medium text-slate-300">
+                  {Math.round(confidence * 100)}%
+                </span>
+              </div>
+            </div>
+          )}
+          
           {/* Education mode indicator */}
           {isEducationMode && !products?.length && (
             <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-500/20">
