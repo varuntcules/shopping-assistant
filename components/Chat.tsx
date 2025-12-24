@@ -1,6 +1,6 @@
 "use client";
 
-import { ChatMessage, UIMode } from "@/lib/types";
+import { ChatMessage, UIMode, AssistantUIModel } from "@/lib/types";
 import ProductGrid from "./ProductGrid";
 import QuickChips from "./QuickChips";
 import ProductComparison from "./ProductComparison";
@@ -99,7 +99,7 @@ function AssistantMessage({
   products?: ChatMessage["products"];
   uiTitle?: string;
   mode?: UIMode;
-  retailUI?: ChatMessage["ui"]["retailUI"];
+  retailUI?: AssistantUIModel["retailUI"];
   confidence?: number;
   onChipSelect?: (chip: string) => void;
 }) {

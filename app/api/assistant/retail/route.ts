@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processRetailConversation, ConversationState } from "@/lib/retailAgent";
 import { isRetailStoreInitialized } from "@/lib/retailVectorStore";
-import { RetailAgentResponse, RetailConversationState } from "@/lib/types";
+import { RetailAgentResponse, RetailConversationState, RetailProduct } from "@/lib/types";
 
 export const runtime = "nodejs";
 
