@@ -1,21 +1,24 @@
 /**
  * Retail Assistant API Route
  * 
- * Voice-first retail shopping assistant for camera/creator gear
- * Uses conversation state management and Supabase product database
+ * Uses ONLY actual DB columns:
+ * - kb_embeddings: embedding_type, embedding_text, embedding (vector) - for semantic search
+ * - kb_enriched_variants: use_cases (ARRAY), skill_level, price_tier, etc. - for structured matching
+ * - latest_product: variants (jsonb for price), images (jsonb) - for product details
+ * 
+ * Tracks collected information across messages to ask clarifying questions
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { processRetailConversation, ConversationState } from "@/lib/retailAgent";
-import { isRetailStoreInitialized } from "@/lib/retailVectorStore";
-import { RetailAgentResponse, RetailConversationState, RetailProduct } from "@/lib/types";
+import { processMessage, CollectedInfo, createInitialState } from "@/lib/simpleAgent";
+import { isSearchAvailable } from "@/lib/simpleSearch";
 
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { message, history = [], conversationState } = body;
+    const { message, collectedInfo } = body;
 
     if (!message || typeof message !== "string" || !message.trim()) {
       return NextResponse.json(
@@ -24,104 +27,55 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log("[RetailAPI] Processing message:", message);
+    console.log("[RetailAPI] Message:", message);
+    console.log("[RetailAPI] Collected info:", JSON.stringify(collectedInfo));
 
-    // Check if retail store is initialized
-    const initialized = await isRetailStoreInitialized();
-    if (!initialized) {
+    // Check if search is available
+    const available = await isSearchAvailable();
+    if (!available) {
       return NextResponse.json({
-        assistantMessage:
-          "The product catalog hasn't been set up yet. Please ensure products_dummy, camera_specs, and lens_specs tables exist in Supabase.",
-        state: {
-          intent: null,
-          primary_use: null,
-          experience_level: null,
-          budget_range: null,
-          constraints_locked: false,
-        },
-        ui: {
-          type: "recovery",
-        },
-        confidence: 0,
-      } as RetailAgentResponse);
+        assistantMessage: "The product search isn't available yet. Please make sure kb_embeddings table has data.",
+        products: [],
+        collectedInfo: createInitialState(),
+        ui: { type: "recovery", chips: ["Try again"] },
+      });
     }
 
-    // Initialize or use existing state
-    const currentState: ConversationState = conversationState || {
-      intent: null,
-      primary_use: null,
-      experience_level: null,
-      budget_range: null,
-      constraints_locked: false,
-    };
+    // Parse collected info from request
+    const currentInfo: CollectedInfo | null = collectedInfo ? {
+      use_case: collectedInfo.use_case ?? null,
+      product_type: collectedInfo.product_type ?? null,
+      price_min: collectedInfo.price_min ?? null,
+      price_max: collectedInfo.price_max ?? null,
+      skill_level: collectedInfo.skill_level ?? null,
+    } : null;
 
-    // Process conversation
-    const response = await processRetailConversation(
-      message.trim(),
-      currentState,
-      history
-    );
+    // Process message with current collected info
+    const response = await processMessage(message.trim(), currentInfo);
 
-    // Convert RetailProduct to ProductCard format for UI compatibility
-    const products = response.products?.map((p) => ({
-      id: p.id,
-      title: p.name,
-      handle: p.id,
-      vendor: "Retail Store",
-      productType: p.category,
-      price: {
-        amount: String(p.price),
-        currencyCode: p.currency || "INR",
-      },
-      image: {
-        url: p.imageUrl || "/placeholder-product.svg",
-        altText: p.name || null,
-      },
-      url: `#product-${p.id}`,
-    })) || [];
+    // Convert products to UI format
+    const products = response.products.map((p) => ({
+      id: String(p.variantId),
+      title: p.title,
+      handle: p.handle,
+      price: { amount: String(p.price), currencyCode: "INR" },
+      image: { url: p.imageUrl || "/placeholder-product.svg", altText: p.title },
+    }));
 
-    const retailResponse: RetailAgentResponse = {
+    return NextResponse.json({
       assistantMessage: response.message,
-      state: response.state,
-      products: response.products,
-      ui: {
-        type: response.ui.type,
-        chips: response.ui.chips,
-        comparison: response.ui.comparison ? {
-          productA: response.products?.find(p => p.id === response.ui.comparison!.productAId)!,
-          productB: response.products?.find(p => p.id === response.ui.comparison!.productBId)!,
-          tradeoffs: response.ui.comparison.tradeoffs,
-        } : undefined,
-        checkout: response.ui.checkout ? {
-          items: response.ui.checkout.itemIds
-            .map(id => response.products?.find(p => p.id === id))
-            .filter(Boolean) as RetailProduct[],
-          total: response.ui.checkout.total,
-        } : undefined,
-      },
-      confidence: response.confidence,
-    };
-
-    console.log(`[RetailAPI] Response type: ${response.ui.type}, Products: ${products.length}`);
-
-    return NextResponse.json(retailResponse);
+      products,
+      collectedInfo: response.collectedInfo, // Return updated state
+      ui: response.ui,
+    });
   } catch (error) {
     console.error("[RetailAPI] Error:", error);
 
     return NextResponse.json({
-      assistantMessage:
-        "I'm having some trouble right now. Could you try rephrasing that?",
-      state: {
-        intent: null,
-        primary_use: null,
-        experience_level: null,
-        budget_range: null,
-        constraints_locked: false,
-      },
-      ui: {
-        type: "recovery",
-      },
-      confidence: 0,
-    } as RetailAgentResponse);
+      assistantMessage: "Something went wrong. Please try again.",
+      products: [],
+      collectedInfo: createInitialState(),
+      ui: { type: "recovery", chips: ["Start over"] },
+    });
   }
 }
