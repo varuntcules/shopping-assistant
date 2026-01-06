@@ -149,9 +149,25 @@ export async function POST(request: NextRequest) {
           parts.push("I couldn't find products matching your criteria, but you can try different keywords or browse our categories!");
         } else {
           parts.push(`Based on this, here are some options I'd suggest:`);
+          
+          // Always add product descriptions when products are found
+          const limitedProducts = products.slice(0, 5);
+          if (limitedProducts.length > 0) {
+            const productDescriptions = limitedProducts.map((product, index) => {
+              const price = parseFloat(product.price.amount);
+              const formattedPrice = product.price.currencyCode === "INR"
+                ? `₹${price.toLocaleString("en-IN")}`
+                : new Intl.NumberFormat("en-US", { style: "currency", currency: product.price.currencyCode }).format(price);
+
+              const shortTitle = product.title.split(' ').slice(0, 4).join(' '); // First 4 words
+              return `Product ${index + 1}: ${shortTitle} at ${formattedPrice}`;
+            }).join(". ");
+            
+            parts.push(productDescriptions);
+          }
         }
         
-        assistantMessage = parts.join("\n\n");
+        assistantMessage = parts.join(". ");
         uiMode = products.length > 0 ? "shopping" : "education";
         break;
       }
@@ -175,6 +191,22 @@ export async function POST(request: NextRequest) {
             assistantMessage = `${intent.educationSummary}\n\n${intent.assistantMessage}`;
           } else {
             assistantMessage = intent.assistantMessage;
+          }
+          
+          // Always add product descriptions when products are found
+          const limitedProducts = products.slice(0, 5);
+          if (limitedProducts.length > 0) {
+            const productDescriptions = limitedProducts.map((product, index) => {
+              const price = parseFloat(product.price.amount);
+              const formattedPrice = product.price.currencyCode === "INR"
+                ? `₹${price.toLocaleString("en-IN")}`
+                : new Intl.NumberFormat("en-US", { style: "currency", currency: product.price.currencyCode }).format(price);
+
+              const shortTitle = product.title.split(' ').slice(0, 4).join(' '); // First 4 words
+              return `Product ${index + 1}: ${shortTitle} at ${formattedPrice}`;
+            }).join(". ");
+            
+            assistantMessage = `${assistantMessage} Here are ${limitedProducts.length} options: ${productDescriptions}.`;
           }
         }
         uiMode = "shopping";

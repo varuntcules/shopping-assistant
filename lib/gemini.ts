@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { SearchIntent } from "./types";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDnC4Y2Vu7OhwvBTc95sr4U9rX6irrgeg8";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const GEMINI_MODEL_FALLBACK = process.env.GEMINI_MODEL_FALLBACK || "gemini-2.5-flash-lite";
 const GEMINI_MODEL_EXPERIMENTAL = process.env.GEMINI_MODEL_EXPERIMENTAL || "";
