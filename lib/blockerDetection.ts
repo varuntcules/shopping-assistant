@@ -360,10 +360,10 @@ export function extractTradeoffs(
  */
 export function createInitialState(): ConversationState {
   return {
-    primaryUseCase: null,
-    budget: null,
-    skillLevel: null,
-    portabilityPreference: null,
+    budget_min: null,
+    budget_max: null,
+    skill_level: null,
+    preferences: null,
   };
 }
 
@@ -377,10 +377,10 @@ export function updateState(
   return {
     ...current,
     ...updates,
-    // Merge budget if both exist
-    budget: updates.budget !== undefined 
-      ? updates.budget 
-      : current.budget,
+    // Merge preferences if both exist
+    preferences: updates.preferences !== undefined
+      ? { ...current.preferences, ...updates.preferences }
+      : current.preferences,
   };
 }
 
