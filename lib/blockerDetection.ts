@@ -176,9 +176,10 @@ function checkNotBestForConflicts(
   state: ConversationState,
   products: EnrichedProduct[]
 ): { product: EnrichedProduct; conflicts: string[] }[] {
-  if (!state.primaryUseCase) return [];
+  const useCase = state.preferences?.use_case;
+  if (!useCase) return [];
   
-  const useCaseLower = state.primaryUseCase.toLowerCase();
+  const useCaseLower = useCase.toLowerCase();
   const conflicts: { product: EnrichedProduct; conflicts: string[] }[] = [];
   
   for (const product of products) {
@@ -212,7 +213,7 @@ export function detectBlockers(
   // 1. Check for missing required state fields
   
   // MISSING_USE_CASE - highest priority
-  if (!isValidUseCase(state.primaryUseCase)) {
+  if (!isValidUseCase(state)) {
     blockers.push({
       type: BlockerType.MISSING_USE_CASE,
       priority: BLOCKER_PRIORITY[BlockerType.MISSING_USE_CASE],
@@ -229,7 +230,7 @@ export function detectBlockers(
   }
   
   // BUDGET_UNCLEAR - second highest priority
-  if (!hasBudget(state.budget)) {
+  if (!hasBudget(state)) {
     blockers.push({
       type: BlockerType.BUDGET_UNCLEAR,
       priority: BLOCKER_PRIORITY[BlockerType.BUDGET_UNCLEAR],
@@ -249,7 +250,7 @@ export function detectBlockers(
   // Only check product-related blockers if we have candidates
   if (candidateProducts.length > 0) {
     // SKILL_MISMATCH - check if skill level is needed
-    if (!state.skillLevel && hasSkillLevelSpread(candidateProducts)) {
+    if (!state.skill_level && hasSkillLevelSpread(candidateProducts)) {
       blockers.push({
         type: BlockerType.SKILL_MISMATCH,
         priority: BLOCKER_PRIORITY[BlockerType.SKILL_MISMATCH],
@@ -264,7 +265,7 @@ export function detectBlockers(
     }
     
     // PORTABILITY_TRADEOFF - check if portability preference is needed
-    if (!state.portabilityPreference && hasPortabilityTradeoff(candidateProducts)) {
+    if (!state.preferences?.portability && hasPortabilityTradeoff(candidateProducts)) {
       blockers.push({
         type: BlockerType.PORTABILITY_TRADEOFF,
         priority: BLOCKER_PRIORITY[BlockerType.PORTABILITY_TRADEOFF],
