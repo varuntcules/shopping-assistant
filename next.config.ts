@@ -4,12 +4,16 @@ const nextConfig: NextConfig = {
   // Mark native modules as external to prevent bundling issues
   serverExternalPackages: ["@lancedb/lancedb", "apache-arrow"],
 
-  // Configure remote images (e.g. Shopify CDN) for next/image
+  // Configure remote images (e.g. Shopify CDN, Unsplash) for next/image
   images: {
     remotePatterns: [
       {
         protocol: "https",
         hostname: "cdn.shopify.com",
+      },
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
       },
     ],
   },

@@ -50,6 +50,35 @@ body {
   }
 }
 
+@keyframes orbPulse {
+  0%, 100% {
+    transform: scale(1.15);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}
+
+@keyframes orbRotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbCalmPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.02);
+    opacity: 0.98;
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.4s ease-out forwards;
 }
@@ -60,6 +89,18 @@ body {
 
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.animate-orb-pulse {
+  animation: orbPulse 2s ease-in-out infinite;
+}
+
+.animate-orb-rotate {
+  animation: orbRotate 8s linear infinite;
+}
+
+.animate-orb-calm-pulse {
+  animation: orbCalmPulse 3s ease-in-out infinite;
 }
 
 /* Scrollbar Styling */
@@ -80,6 +121,11 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(139, 92, 246, 0.5);
+}
+
+/* Hide scrollbar for AI response text */
+.ai-response-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* Focus Styles */

@@ -1,8 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import IntentCapture from "./IntentCapture";
-import CartIcon from "./CartIcon";
 
 interface TopGestureAreaProps {
   intent: string | null;
@@ -60,17 +58,38 @@ export default function TopGestureArea({
         <div className="w-10 h-0.5 bg-white/20 rounded-full transition-opacity duration-300 hover:opacity-40" />
       </div>
 
-      {/* Intent chip with cart icon - Horizontally aligned */}
-      <div className="flex items-center justify-center gap-3 pt-2 px-4 pointer-events-auto">
-        {/* Cart icon - Left side */}
-        <CartIcon itemCount={cartItemCount} onClick={onCartClick} />
-        
-        {/* Intent chip - Center */}
-        <IntentCapture intent={intent} searchContext={searchContext} onClear={onClearIntent} />
-      </div>
+      {/* Intent text with repeat icon - New Figma style */}
+      {intent && (
+        <div className="flex items-center justify-center gap-3 px-[44px] py-[12px] pointer-events-auto">
+          <p className="text-[20px] font-medium text-white text-center tracking-[-0.8px] leading-[1.2] whitespace-nowrap">
+            {intent}
+          </p>
+          <button
+            onClick={onClearIntent}
+            className="w-5 h-5 flex items-center justify-center flex-shrink-0"
+            aria-label="Repeat search"
+          >
+            <img 
+              alt="Repeat" 
+              className="w-full h-full block"
+              src="http://localhost:3845/assets/432c025dcd7440917fea6993eafc1f64d1b319de.svg"
+            />
+          </button>
+        </div>
+      )}
+      
+      {/* Fallback: Show search context if no intent */}
+      {!intent && searchContext && (
+        <div className="flex items-center justify-center gap-3 px-[44px] py-[12px] pointer-events-auto">
+          <p className="text-[20px] font-medium text-white text-center tracking-[-0.8px] leading-[1.2] whitespace-nowrap">
+            {searchContext}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
+
 
 
 

@@ -103,14 +103,14 @@ export async function POST(request: NextRequest) {
     console.log("[TTS] Processed text length:", processedText.length);
     console.log("[TTS] Full processed text:", processedText);
 
-    // Add pauses for more natural speech and slower pace
-    // Add longer pauses after product mentions for better highlighting sync and slower speech
-    processedText = processedText.replace(/(Product \d+:)/g, '$1... ...');
-    // Add pauses after periods and commas for more natural speech
-    processedText = processedText.replace(/\. /g, '. ... ... ');
+    // Add minimal pauses for natural speech without slowing down too much
+    // Shorter pauses for faster, more natural pace
+    processedText = processedText.replace(/(Product \d+:)/g, '$1...');
+    // Add shorter pauses after periods and commas for faster speech
+    processedText = processedText.replace(/\. /g, '. ... ');
     processedText = processedText.replace(/, /g, ', ... ');
-    // Add pause before "at" in price mentions for clearer speech
-    processedText = processedText.replace(/\s+at\s+/g, ' ... at ... ');
+    // Minimal pause before "at" in price mentions
+    processedText = processedText.replace(/\s+at\s+/g, ' ... at ');
     
     // Ensure text is not too long (ElevenLabs has limits)
     const maxLength = 5000; // ElevenLabs character limit
@@ -122,11 +122,11 @@ export async function POST(request: NextRequest) {
     try {
       const audioStream = await client.textToSpeech.convert(voiceId, {
         text: processedText,
-        modelId: "eleven_multilingual_v2",
+        modelId: "eleven_turbo_v2_5", // Use turbo model for faster, more natural speech
         voiceSettings: {
-          stability: 0.7, // Higher stability for slower, more consistent speech
-          similarityBoost: 0.75,
-          style: 0.0,
+          stability: 0.35, // Lower stability for faster, more natural speech (was 0.7)
+          similarityBoost: 0.9, // Higher similarity for more human-like voice (was 0.75)
+          style: 0.4, // Add more style/expressiveness for more natural speech (was 0.0)
           useSpeakerBoost: true,
         },
       });

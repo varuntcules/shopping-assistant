@@ -8,7 +8,10 @@ import CenterEmptyState from "@/components/generative/CenterEmptyState";
 import FloatingActionBar from "@/components/generative/FloatingActionBar";
 import UserTranscript from "@/components/generative/UserTranscript";
 import HorizontalProductGrid from "@/components/generative/HorizontalProductGrid";
-import VoiceWaveform from "@/components/generative/VoiceWaveform";
+import BentoProductGrid from "@/components/generative/BentoProductGrid";
+import VoiceOrb from "@/components/generative/VoiceOrb";
+import AIResponseText from "@/components/generative/AIResponseText";
+import ConversationView from "@/components/generative/ConversationView";
 
 export default function Home() {
   const ui = useGenerativeUI();
@@ -23,6 +26,90 @@ export default function Home() {
   const productDescriptionRefs = useRef<Array<{ startTime: number; productIndex: number }>>([]);
   const questionCountRef = useRef<number>(0);
   const conversationHistoryRef = useRef<string[]>([]);
+
+  // Generate dummy AI responses for conversation testing
+  const generateDummyResponse = (userMessage: string, questionCount: number): {
+    message: string;
+    title: string;
+    mode: "education" | "shopping";
+  } => {
+    const lowerMessage = userMessage.toLowerCase();
+    
+    // First question - ask clarifying question
+    if (questionCount === 1) {
+      if (lowerMessage.includes("camera") || lowerMessage.includes("dslr") || lowerMessage.includes("photography") || lowerMessage.includes("travel") || lowerMessage.includes("vlog")) {
+        return {
+          message: `For travel vlogging, choosing a sensor size is a balancing act between portability and performance in challenging light. The sensor size determines how much light your camera can capture and how large the camera and lenses will be.
+
+**Full-Frame Sensors** (The Low Light King) balancing quality and weight.
+
+**APS-C** (The Travel Sweet Spot) balancing quality and weight.
+
+**Micro Four Thirds** (Maximum Portability) for ultra-light setups.
+
+• Full-Frame offers the best low-light performance but usually results in larger, heavier gear.
+• APS-C is the 'sweet spot' for many vloggers, offering a great balance of size, weight, and low-light capability.
+• Micro Four Thirds is the most portable option but requires faster lenses (lower f-stop) to match the low-light performance of larger sensors.`,
+          title: "Choosing the Right Sensor for Travel Vlogging",
+          mode: "education",
+        };
+      } else if (lowerMessage.includes("lens") || lowerMessage.includes("wide") || lowerMessage.includes("angle")) {
+        return {
+          message: `Great question! For travel vlogging, lens choice is crucial. Let me help you understand the options:
+
+**Wide-Angle Lenses** (14-24mm) - Perfect for capturing landscapes and tight spaces.
+
+**Standard Zoom Lenses** (24-70mm) - Versatile for most situations.
+
+**Telephoto Lenses** (70-200mm) - Great for distant subjects but heavier.
+
+What type of content will you be shooting most? Are you focusing on landscapes, street scenes, or a mix of everything?`,
+          title: "Understanding Lens Options",
+          mode: "education",
+        };
+      } else {
+        return {
+          message: `That's a great question! To help you find the perfect gear, I'd like to understand a bit more about your needs.
+
+**What's your primary use case?** Are you shooting photos, videos, or both?
+
+**What's your budget range?** This will help me recommend the best options.
+
+**Any specific features you need?** Like low-light performance, portability, or specific shooting scenarios?
+
+Tell me more about what you're looking for and I'll help you find the perfect match!`,
+          title: "Let me help you decide",
+          mode: "education",
+        };
+      }
+    }
+    
+    // Second question or more - provide more detailed response
+    if (lowerMessage.includes("lightest") || lowerMessage.includes("lightweight") || lowerMessage.includes("portable") || lowerMessage.includes("light")) {
+      return {
+        message: `Perfect! For the lightest weight gear possible, I'd recommend focusing on:
+
+**Mirrorless cameras** with Micro Four Thirds or APS-C sensors - these are significantly lighter than DSLRs.
+
+**Prime lenses** instead of zoom lenses - they're lighter and often sharper.
+
+**Compact camera bodies** - look for models designed specifically for travel.
+
+Here are some lightweight options that work well in low light conditions...`,
+        title: "Lightweight Gear Recommendations",
+        mode: "education",
+      };
+    }
+    
+    // Default response
+    return {
+      message: `I understand you're looking for ${userMessage}. Let me help you find the best options.
+
+Based on what you've told me, here are some recommendations that might work well for your needs. Would you like me to show you specific products, or do you have more questions about the features?`,
+      title: "Finding the Right Product",
+      mode: "education",
+    };
+  };
 
   // Create mock products for testing UI/UX
   const createMockProducts = (): ProductCard[] => {
@@ -695,6 +782,13 @@ export default function Home() {
 
   const handleSubmit = async (message: string) => {
     if (!message.trim()) return;
+    
+    // Prevent duplicate submissions of the same message
+    const lastUserMessage = ui.messages.filter(m => m.role === "user").pop();
+    if (lastUserMessage?.content === message.trim()) {
+      // This message was already submitted, skip it
+      return;
+    }
 
     // Check if this is a product selection command when products are shown
     // Allow cart commands even while AI is speaking
@@ -722,6 +816,12 @@ export default function Home() {
     ui.updateVoiceState({ isListening: false, isProcessing: true });
     setIsMicActive(false);
 
+    // Add user message to conversation
+    ui.addMessage({
+      role: "user",
+      content: message,
+    });
+
     if (ui.currentState === "launch") {
       ui.transitionTo("intent-discovery");
       ui.updateIntent({ text: message, confidence: 0.7 });
@@ -735,15 +835,15 @@ export default function Home() {
     conversationHistoryRef.current.push(message);
 
     // On first question, encourage the AI to ask a clarifying question instead of showing products immediately
-    // After 2 questions, force search mode - modify message to force product search
+    // After 3 questions, force search mode - modify message to force product search
     // But only if we don't already have products
     let apiMessage = message;
     if (ui.currentProducts.length === 0) {
       if (questionCountRef.current === 1) {
         // First question - STRONGLY encourage asking a follow-up question, do NOT show products yet
         apiMessage = `${message}. IMPORTANT: This is the user's first question. Please ask them ONE clarifying question to better understand their needs. Do NOT show products yet. Only ask a question.`;
-      } else if (questionCountRef.current >= 2) {
-        // After 2 questions, force search mode
+      } else if (questionCountRef.current >= 3) {
+        // After 3 questions, force search mode - show products
         apiMessage = `${message} - please show me products now, I don't need more questions`;
       }
     }
@@ -781,24 +881,55 @@ export default function Home() {
         errorMessage = response.statusText || `API error: ${response.status}`;
       }
       
+      // Generate dummy response if API fails or returns error
       if (errorMessage && !data) {
-        ui.updateConversation(`Oops! ${errorMessage}`);
+        const dummyResponse = generateDummyResponse(message, questionCountRef.current);
+        ui.handleAssistantResponse({
+          assistantMessage: dummyResponse.message,
+          products: [],
+          ui: { layout: "grid", title: dummyResponse.title, mode: dummyResponse.mode },
+        });
         ui.updateVoiceState({ isProcessing: false });
-        setTimeout(() => ui.updateConversation(null), 5000);
         return;
       }
       
       if (!data) {
-        ui.updateConversation("I'm having trouble processing that. Please try again.");
+        const dummyResponse = generateDummyResponse(message, questionCountRef.current);
+        ui.handleAssistantResponse({
+          assistantMessage: dummyResponse.message,
+          products: [],
+          ui: { layout: "grid", title: dummyResponse.title, mode: dummyResponse.mode },
+        });
         ui.updateVoiceState({ isProcessing: false });
-        setTimeout(() => ui.updateConversation(null), 5000);
         return;
       }
 
       const limitedProducts = (data.products || []).slice(0, 5);
       
-      // After 2 questions, force show products (mock or real) - STOP asking questions
-      if (questionCountRef.current >= 2 && limitedProducts.length === 0) {
+      // Always show the assistant response in conversation view
+      // This ensures the conversation screen appears with both user and assistant messages
+      ui.handleAssistantResponse({
+        assistantMessage: data.assistantMessage,
+        products: limitedProducts,
+        ui: data.ui || { layout: "grid", title: "Response", mode: limitedProducts.length > 0 ? "shopping" : "education" },
+      });
+      
+      // If products are found, show them immediately
+      if (limitedProducts.length > 0) {
+        setUserTranscript(null);
+        setInterimTranscript("");
+        questionCountRef.current = 0; // Reset counter when products are shown
+        ui.updateVoiceState({ isProcessing: false });
+        
+        // Play TTS for the product announcement
+        if (data.assistantMessage) {
+          await playTTS(data.assistantMessage, limitedProducts);
+        }
+        return; // Exit early, products are shown
+      }
+      
+      // After 3 questions, force show products (mock or real) - STOP asking questions
+      if (questionCountRef.current >= 3 && limitedProducts.length === 0) {
         // Try to get real products first using knowledge base search
         const searchQuery = ui.intent?.text || conversationHistoryRef.current[0] || message;
         let productsToShow: ProductCard[] = [];
@@ -864,10 +995,8 @@ export default function Home() {
         setInterimTranscript("");
         questionCountRef.current = 0; // Reset counter
         
-        ui.handleAssistantResponse({
-          assistantMessage: messageToShow,
-          products: productsToShow,
-        });
+        // Already handled above, but ensure products are set
+        ui.setProducts(productsToShow);
         
         ui.updateIntent({ text: "Found products", confidence: 1 });
         ui.updateVoiceState({ isProcessing: false });
@@ -877,53 +1006,13 @@ export default function Home() {
         return; // Exit early, don't process the original response that asks questions
       }
       
-      // Normal flow - show products if available
-      if (limitedProducts.length > 0) {
-        setUserTranscript(null);
-        setInterimTranscript("");
-        questionCountRef.current = 0; // Reset counter when products are shown
-      }
-      
-      ui.handleAssistantResponse({
-        assistantMessage: data.assistantMessage,
-        products: limitedProducts,
-      });
-
-      if (data.products.length > 0) {
-        ui.updateIntent({ text: data.ui.title || "Found products", confidence: 1 });
-        questionCountRef.current = 0; // Reset counter when products are shown
-      } else {
-        // If no products, this was a question - don't reset counter yet
-        // Counter will be used to force products after 2 questions
-      }
-
+      // If no products, this was a question/educational response
+      // Continue conversation, but after 3 questions, force show products
       ui.updateVoiceState({ isProcessing: false });
       
-      // When products are shown, ensure TTS mentions all products sequentially
-      if (data.assistantMessage && limitedProducts.length > 0) {
-        // Check if the message already includes product descriptions
-        const hasProductMentions = /Product\s+\d+:/i.test(data.assistantMessage);
-        
-        if (!hasProductMentions) {
-          // Add product descriptions to the message for TTS
-          const productDescriptions = limitedProducts.map((product, index) => {
-            const price = parseFloat(product.price.amount);
-            const formattedPrice = product.price.currencyCode === "INR"
-              ? `₹${price.toLocaleString("en-IN")}`
-              : new Intl.NumberFormat("en-US", { style: "currency", currency: product.price.currencyCode }).format(price);
-            
-            const shortTitle = product.title.split(' ').slice(0, 4).join(' ');
-            return `Product ${index + 1}: ${shortTitle} at ${formattedPrice}`;
-          }).join(". ");
-          
-          const enhancedMessage = `${data.assistantMessage} Here are ${limitedProducts.length} options: ${productDescriptions}.`;
-          await playTTS(enhancedMessage, limitedProducts);
-        } else {
-          // Message already includes products, use as-is
-          await playTTS(data.assistantMessage, limitedProducts);
-        }
-      } else if (data.assistantMessage) {
-        await playTTS(data.assistantMessage, limitedProducts);
+      // Play TTS for the assistant response
+      if (data.assistantMessage) {
+        await playTTS(data.assistantMessage, []);
       }
       
       // Clear transcript after a delay if no products
@@ -954,23 +1043,19 @@ export default function Home() {
   const hasProducts = ui.currentProducts.length > 0;
   const isIdleState = ui.currentState === "launch" && !ui.conversationMessage && !hasProducts;
   const showResponse = ui.conversationMessage;
-  const isMinimized = hasProducts || showResponse;
+  const hasConversation = ui.messages.length > 0;
+  // Only minimize when products are shown, not during conversation
+  const isMinimized = hasProducts && !hasConversation;
 
   return (
-    <div className="h-screen bg-black overflow-hidden relative w-full max-w-md mx-auto" style={{ maxWidth: "100vw" }}>
-      {/* Full-screen black background */}
-      <div className="absolute inset-0 bg-black" />
-      
-      {/* Subtle red gradient overlay */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div 
-          className="absolute bottom-0 left-0 right-0 h-[40vh] opacity-40 transition-opacity duration-700"
-          style={{
-            background: "radial-gradient(ellipse at center bottom, rgba(239, 68, 68, 0.2) 0%, rgba(250, 204, 21, 0.1) 40%, transparent 70%)",
-            filter: "blur(100px)",
-          }}
-        />
-      </div>
+    <div className="h-screen overflow-hidden relative w-full max-w-md mx-auto" style={{ maxWidth: "100vw" }}>
+      {/* Full-screen dark gradient background (deep navy → black) */}
+      <div 
+        className="absolute inset-0"
+        style={{
+          background: "linear-gradient(to bottom, #0a1128 0%, #000000 100%)",
+        }}
+      />
 
       {/* Top bar with swipe down and intent capture */}
       <TopGestureArea 
@@ -980,45 +1065,97 @@ export default function Home() {
         onSwipeDown={() => {
           console.log("Swipe down to show previous conversations");
         }}
-        onClearIntent={() => ui.updateIntent(null)}
+        onClearIntent={() => {
+          // Stop any playing audio
+          if (audioRef.current && !audioRef.current.paused) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            ui.updateVoiceState({ isSpeaking: false });
+          }
+          // Clear intent and conversation, return to listening state
+          ui.updateIntent(null);
+          ui.updateConversation(null);
+          setUserTranscript(null);
+          setInterimTranscript("");
+          questionCountRef.current = 0;
+          conversationHistoryRef.current = [];
+          // Reset will clear messages
+          ui.reset();
+        }}
         onCartClick={() => {
           console.log("Cart clicked, items:", ui.cart.length);
         }}
         isActive={isMicActive || ui.voiceState.isSpeaking}
       />
 
-      {/* Center empty state */}
-      <CenterEmptyState isVisible={isIdleState && !isMicActive} />
+      {/* Center empty state with voice orb */}
+      <CenterEmptyState 
+        isVisible={isIdleState && !isMicActive} 
+        isListening={isMicActive}
+        isSpeaking={ui.voiceState.isSpeaking}
+      />
 
-      {/* User transcript + Voice Waveform - Only show when listening or when no products */}
-      {(isMicActive || (userTranscript && !hasProducts)) && (
+      {/* Animated Orb with glow - Only show when listening AND no active conversation */}
+      {isMicActive && !hasConversation && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-30 top-1/2 -translate-y-1/2 animate-fadeIn w-full flex flex-col items-center justify-center">
+          <VoiceOrb isListening={isMicActive} isSpeaking={false} />
+        </div>
+      )}
+
+      {/* Conversation View - Show when there are messages and no products (even when listening) */}
+      {!hasProducts && ui.messages.length > 0 && (
+        <div 
+          className="fixed left-0 right-0 z-30 w-full animate-fadeIn flex flex-col"
+          style={{
+            top: "120px",
+            bottom: "140px",
+            height: "calc(100vh - 260px)",
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingTop: "20px",
+            paddingBottom: "20px",
+          }}
+        >
+          <ConversationView 
+            messages={ui.messages}
+            onOptionClick={(option) => {
+              // When user clicks an educational option, treat it as a new message
+              handleSubmit(option);
+            }}
+          />
+        </div>
+      )}
+
+      {/* User transcript - Only show when not listening but has transcript and no products and no messages */}
+      {!isMicActive && (userTranscript && !hasProducts && ui.messages.length === 0) && (
         <div className="fixed left-1/2 -translate-x-1/2 z-30 top-1/2 -translate-y-1/2 animate-fadeIn w-full px-4 flex flex-col items-center">
           <UserTranscript 
             transcript={userTranscript || interimTranscript} 
-            isListening={isMicActive}
+            isListening={false}
           />
-          <VoiceWaveform isActive={isMicActive} />
-          {isMicActive && <p className="text-white/70 text-sm mt-2">Listening...</p>}
         </div>
       )}
 
       {/* Main content area - Products and AI response (when products are shown) */}
       {!isMicActive && hasProducts && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-30 w-full animate-fadeIn flex flex-col items-center"
+        <div className="fixed left-0 right-0 z-30 w-full animate-fadeIn flex flex-col"
           style={{
             top: "120px",
             bottom: "140px",
-            maxHeight: "calc(100vh - 260px)",
+            height: "calc(100vh - 260px)",
             overflowY: "auto",
             overflowX: "hidden",
-            paddingBottom: "20px",
+            paddingBottom: "32px",
+            paddingTop: "20px",
+            paddingLeft: "0",
+            paddingRight: "0",
             width: "100%",
             maxWidth: "100vw",
           }}
         >
-          {/* Products */}
-          <div className="w-full flex-shrink-0 mb-6" style={{ overflowX: "visible" }}>
-            <HorizontalProductGrid 
+          {/* Products - Bento Grid */}
+          <div className="w-full flex-1 flex flex-col" style={{ overflowX: "visible", marginBottom: "32px", minHeight: 0, height: "100%", width: "100%" }}>
+            <BentoProductGrid 
               products={ui.currentProducts.slice(0, 5)}
               highlightedIndex={highlightedProductIndex}
               onProductClick={(product) => {
@@ -1046,30 +1183,33 @@ export default function Home() {
         </div>
       )}
 
-      {/* AI response only (when no products - centered) */}
-      {showResponse && !isMicActive && !hasProducts && (
-        <div className="fixed left-1/2 -translate-x-1/2 z-30 w-full px-4 animate-fadeIn"
+      {/* AI response with orb (when no products and no conversation messages - Figma design) */}
+      {showResponse && !isMicActive && !hasProducts && ui.messages.length === 0 && (
+        <div className="fixed left-1/2 -translate-x-1/2 z-30 w-full px-[24px] animate-fadeIn"
           style={{
             top: "50%",
             transform: "translate(-50%, -50%)",
-            maxWidth: "calc(100vw - 32px)",
+            maxWidth: "393px",
           }}
         >
           <div className="flex flex-col items-center justify-center">
-            <p className="text-white text-base font-normal leading-relaxed text-center max-w-lg line-clamp-2">
-              {ui.conversationMessage}
-            </p>
-            {ui.voiceState.isSpeaking && (
-              <div className="mt-2 flex items-center gap-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                <span className="text-white/60 text-xs">Speaking...</span>
-              </div>
-            )}
+            {/* Orb */}
+            <div className="mb-0" style={{ width: "305px", height: "238.564px" }}>
+              <VoiceOrb isListening={false} isSpeaking={ui.voiceState.isSpeaking} />
+            </div>
+            
+            {/* AI response text with two-line focus system */}
+            <div className="relative w-full flex items-center justify-center gap-[5px]" style={{ height: "141px" }}>
+              <AIResponseText 
+                text={ui.conversationMessage || ""} 
+                isSpeaking={ui.voiceState.isSpeaking}
+              />
+            </div>
           </div>
         </div>
       )}
 
-      {/* Floating action bar */}
+      {/* Floating action bar with transcript */}
       <FloatingActionBar
         onCameraClick={() => {}}
         onUploadClick={() => {}}
@@ -1091,6 +1231,15 @@ export default function Home() {
         onTextSubmit={handleSubmit}
         isListening={isMicActive}
         isMinimized={isMinimized}
+        transcript={ui.voiceState.isSpeaking ? null : (
+          // When actively listening, show live transcript
+          isMicActive ? (userTranscript || interimTranscript || null) :
+          // When conversation exists, show last user message or live transcript
+          hasConversation ? (userTranscript || interimTranscript || ui.messages.filter(m => m.role === "user").pop()?.content || null) :
+          // Default: show live transcript
+          (userTranscript || interimTranscript || null)
+        )}
+        isSpeaking={ui.voiceState.isSpeaking}
       />
     </div>
   );

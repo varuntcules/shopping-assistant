@@ -11,6 +11,7 @@ interface GenerativeUIState {
   focusedProductIndex: number | null;
   conversationMessage: string | null;
   cart: ProductCard[];
+  messages: ChatMessage[];
 }
 
 export function useGenerativeUI() {
@@ -26,6 +27,7 @@ export function useGenerativeUI() {
     focusedProductIndex: null,
     conversationMessage: null,
     cart: [],
+    messages: [],
   });
 
   const transitionTo = useCallback((newState: UIState) => {
@@ -77,11 +79,56 @@ export function useGenerativeUI() {
     setState((prev) => ({ ...prev, conversationMessage: message }));
   }, []);
 
+  const addMessage = useCallback((message: ChatMessage) => {
+    setState((prev) => {
+      // Check if the last message is already the same to prevent duplicates
+      const lastMessage = prev.messages[prev.messages.length - 1];
+      const isDuplicate = lastMessage?.role === message.role && 
+                          lastMessage?.content === message.content;
+      
+      if (isDuplicate) {
+        // Don't add duplicate message
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        messages: [...prev.messages, message],
+      };
+    });
+  }, []);
+
   const handleAssistantResponse = useCallback((response: {
     assistantMessage: string;
     products: ProductCard[];
+    ui?: AssistantUIModel;
   }) => {
+    // Only update conversation message for backward compatibility (old UI)
+    // The conversation view uses the messages array, not conversationMessage
     updateConversation(response.assistantMessage);
+    
+    // Add assistant message to conversation (only if not already added)
+    // Check if the last message is already this assistant message to prevent duplicates
+    setState((prev) => {
+      const lastMessage = prev.messages[prev.messages.length - 1];
+      const isDuplicate = lastMessage?.role === "assistant" && 
+                          lastMessage?.content === response.assistantMessage;
+      
+      if (isDuplicate) {
+        // Don't add duplicate, just update products if needed
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        messages: [...prev.messages, {
+          role: "assistant",
+          content: response.assistantMessage,
+          products: response.products,
+          ui: response.ui,
+        }],
+      };
+    });
     
     if (response.products.length > 0) {
       setProducts(response.products);
@@ -92,7 +139,7 @@ export function useGenerativeUI() {
         return { ...prev, currentState: newState };
       });
     }
-  }, [updateConversation, setProducts]);
+  }, [updateConversation, setProducts, addMessage]);
 
   const reset = useCallback(() => {
     setState({
@@ -107,6 +154,7 @@ export function useGenerativeUI() {
       focusedProductIndex: null,
       conversationMessage: null,
       cart: [],
+      messages: [],
     });
   }, []);
 
@@ -120,9 +168,11 @@ export function useGenerativeUI() {
     addToCart,
     updateConversation,
     handleAssistantResponse,
+    addMessage,
     reset,
   };
 }
+
 
 
 
