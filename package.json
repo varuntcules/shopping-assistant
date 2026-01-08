@@ -10,23 +10,27 @@
     "embed:products-dummy": "tsx scripts/embed-products-dummy.ts"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.3",
+    "@ai-sdk/react": "^3.0.11",
     "@google/genai": "^1.34.0",
-    "pg": "^8.13.1",
+    "ai": "^6.0.11",
     "dotenv": "^17.2.3",
     "next": "16.1.0",
+    "pg": "^8.13.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "tsx": "^4.19.3"
+    "tsx": "^4.19.3",
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.1.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "@types/pg": "^8.11.10"
+    "typescript": "^5"
   }
 }

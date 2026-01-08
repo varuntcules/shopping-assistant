@@ -2,16 +2,39 @@
  * Voice-First Retail Shopping Agent
  * 
  * Implements a conversational shopping agent for camera/photo/video gear that:
- * - Maintains conversation state
- * - Asks ONE question at a time
- * - Fetches products only from Supabase (camera_specs, lens_specs, products_dummy)
- * - Provides warm, helpful, store-associate-like responses
+ * - Uses blocker-driven conversation flow
+ * - Asks questions only when ambiguity triggers exist (decision blockers)
+ * - Shows products with tradeoffs when no blockers remain
+ * - Uses kb_enriched_variants and kb_embeddings tables
+ * - Prioritizes: use_case > best_for > not_best_for/tradeoffs/ambiguity_triggers
  */
 
 import { GoogleGenAI, Type } from "@google/genai";
 import { generateEmbedding } from "./embeddings";
 import { searchRetailProducts, RetailProduct } from "./retailVectorStore";
-import { ChatMessage } from "./types";
+import { ChatMessage, BlockerConversationState, EnrichedProductType, ProductTradeoff } from "./types";
+import { 
+  searchEnrichedProducts, 
+  EnrichedProduct,
+  EnrichedSearchParams 
+} from "./enrichedSearch";
+import {
+  ConversationState as BlockerState,
+  detectBlockers,
+  canRecommend,
+  getTopBlocker,
+  extractTradeoffs,
+  createInitialState,
+  updateState,
+  Blocker,
+  BlockerType,
+} from "./blockerDetection";
+import {
+  generateQuestion,
+  getAcknowledgment,
+  parseUserResponse,
+  GeneratedQuestion,
+} from "./questionGenerator";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-pro";
@@ -755,3 +778,432 @@ Analyze the message, update state (at most ONE field), and generate response:`;
   }
 }
 
+// ============================================================================
+// BLOCKER-DRIVEN CONVERSATION AGENT (NEW)
+// ============================================================================
+
+/**
+ * Blocker-driven agent response
+ */
+export interface BlockerAgentResponse {
+  message: string;
+  state: BlockerState;
+  products?: EnrichedProduct[];
+  blockers: Blocker[];
+  ui: {
+    type: "question" | "recommendation" | "comparison" | "checkout" | "confirmation" | "recovery";
+    chips?: string[];
+    tradeoffs?: ProductTradeoff[];
+    currentQuestion?: GeneratedQuestion;
+  };
+}
+
+/**
+ * Gemini schema for intent extraction in blocker-driven flow
+ */
+const blockerIntentSchema = {
+  type: Type.OBJECT,
+  properties: {
+    // State updates - extract from user message
+    extractedUseCase: { 
+      type: Type.STRING, 
+      description: "Extract use case if mentioned (e.g., 'travel vlogging', 'studio photography', 'wildlife'). Return null if not mentioned." 
+    },
+    extractedBudgetMin: { 
+      type: Type.NUMBER, 
+      description: "Extract minimum budget amount in INR if mentioned. Return null if not mentioned." 
+    },
+    extractedBudgetMax: { 
+      type: Type.NUMBER, 
+      description: "Extract maximum budget amount in INR if mentioned. Return null if not mentioned." 
+    },
+    extractedSkillLevel: { 
+      type: Type.STRING, 
+      enum: ["beginner", "intermediate", "pro", "expert"],
+      description: "Extract skill level if mentioned. Return null if not mentioned." 
+    },
+    extractedPortability: {
+      type: Type.STRING,
+      enum: ["portable", "quality", "balanced"],
+      description: "Extract portability preference if mentioned. Return null if not mentioned."
+    },
+    
+    // Response generation
+    acknowledgment: { 
+      type: Type.STRING, 
+      description: "Brief, warm acknowledgment of what the user said (1-2 sentences max)" 
+    },
+    
+    // Additional context
+    additionalContext: {
+      type: Type.STRING,
+      description: "Any additional context or specific requirements mentioned by user"
+    },
+  },
+  required: ["acknowledgment"],
+};
+
+const blockerSystemPrompt = `You are a warm, helpful retail store associate helping customers find camera and creator gear. Your role is to extract information from user messages and provide brief acknowledgments.
+
+EXTRACTION RULES:
+- Extract use case if the user mentions what they want to do (travel vlogging, studio photography, events, wildlife, etc.)
+- Extract budget if mentioned (convert "50k" to 50000, "1 lakh" to 100000, "under 50k" to max: 50000)
+- Extract skill level from phrases like "beginner", "just starting", "professional", "intermediate"
+- Extract portability preference from "lightweight", "portable", "travel-friendly" → "portable"; "best quality", "studio" → "quality"
+
+ACKNOWLEDGMENT RULES:
+- Keep acknowledgments brief and warm (1-2 sentences)
+- Don't ask questions - the system will generate those based on blockers
+- Don't mention products - just acknowledge what the user said
+- Examples: "Great, travel vlogging - that's exciting!", "Got it, you're looking for something portable."
+
+Be natural and conversational. Never expose internal reasoning.`;
+
+/**
+ * Extract intent updates from user message using Gemini
+ */
+async function extractIntentUpdates(
+  userMessage: string,
+  currentState: BlockerState,
+  conversationHistory: ChatMessage[] = []
+): Promise<{ updates: Partial<BlockerState>; acknowledgment: string }> {
+  try {
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    
+    // Build context
+    const historyText = conversationHistory
+      .slice(-4)
+      .map((msg) => `${msg.role}: ${msg.content}`)
+      .join("\n");
+    
+    const prompt = `Current state:
+${JSON.stringify(currentState, null, 2)}
+
+${historyText ? `Recent conversation:\n${historyText}\n\n` : ""}User message: "${userMessage}"
+
+Extract any information the user provided and generate a brief acknowledgment:`;
+
+    const models = getGeminiModelList();
+    let parsed: {
+      extractedUseCase?: string;
+      extractedBudgetMin?: number;
+      extractedBudgetMax?: number;
+      extractedSkillLevel?: "beginner" | "intermediate" | "pro" | "expert";
+      extractedPortability?: "portable" | "quality" | "balanced";
+      acknowledgment: string;
+      additionalContext?: string;
+    } | null = null;
+
+    for (const modelName of models) {
+      try {
+        console.log(`[BlockerAgent] Trying model: ${modelName}`);
+
+        const response = await ai.models.generateContent({
+          model: modelName,
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          config: {
+            systemInstruction: blockerSystemPrompt,
+            responseMimeType: "application/json",
+            responseSchema: blockerIntentSchema,
+            temperature: 0.5,
+          },
+        });
+
+        const text = response.text;
+        if (!text) {
+          throw new Error("Empty response from Gemini");
+        }
+
+        parsed = JSON.parse(text);
+        console.log(`[BlockerAgent] Success with model: ${modelName}`);
+        break;
+      } catch (error) {
+        console.error(`[BlockerAgent] Error with model ${modelName}:`, error);
+        continue;
+      }
+    }
+
+    if (!parsed) {
+      // Fallback - try to parse manually
+      return {
+        updates: {},
+        acknowledgment: "Thanks for that information!",
+      };
+    }
+
+    // Build updates from extracted values
+    const updates: Partial<BlockerState> = {};
+
+    if (parsed.extractedUseCase && parsed.extractedUseCase !== "null") {
+      updates.primaryUseCase = parsed.extractedUseCase;
+    }
+
+    if (parsed.extractedBudgetMin !== undefined || parsed.extractedBudgetMax !== undefined) {
+      updates.budget = {
+        min: parsed.extractedBudgetMin,
+        max: parsed.extractedBudgetMax,
+      };
+    }
+
+    if (parsed.extractedSkillLevel) {
+      updates.skillLevel = parsed.extractedSkillLevel;
+    }
+
+    if (parsed.extractedPortability) {
+      updates.portabilityPreference = parsed.extractedPortability;
+    }
+
+    if (parsed.additionalContext) {
+      updates.additionalContext = parsed.additionalContext;
+    }
+
+    console.log("[BlockerAgent] Extracted updates:", updates);
+
+    return {
+      updates,
+      acknowledgment: parsed.acknowledgment || "Thanks!",
+    };
+  } catch (error) {
+    console.error("[BlockerAgent] Error extracting intent:", error);
+    return {
+      updates: {},
+      acknowledgment: "Thanks for sharing that!",
+    };
+  }
+}
+
+/**
+ * Convert EnrichedProduct to the format expected by the API
+ */
+function enrichedToRetailProduct(product: EnrichedProduct): EnrichedProductType {
+  return {
+    productId: product.productId,
+    variantId: product.variantId,
+    title: product.title,
+    handle: product.handle,
+    price: product.price,
+    imageUrl: product.imageUrl,
+    useCases: product.useCases,
+    skillLevel: product.skillLevel,
+    portabilityScore: product.portabilityScore,
+    priceTier: product.priceTier,
+    bestFor: product.bestFor,
+    notBestFor: product.notBestFor,
+    tradeoffs: product.tradeoffs,
+    ambiguityTriggers: product.ambiguityTriggers,
+    confidenceScore: product.confidenceScore,
+    matchScore: product.matchScore,
+    matchedFields: product.matchedFields,
+  };
+}
+
+/**
+ * Main blocker-driven conversation processor
+ * 
+ * Flow:
+ * 1. Extract intent updates from user message
+ * 2. Update conversation state
+ * 3. Perform semantic search on enriched data
+ * 4. Detect blockers from state + candidate products
+ * 5. If blockers exist → ask highest-priority question
+ * 6. If no blockers → show products with tradeoffs
+ */
+export async function processBlockerConversation(
+  userMessage: string,
+  currentState: BlockerState | null,
+  conversationHistory: ChatMessage[] = []
+): Promise<BlockerAgentResponse> {
+  try {
+    // Initialize state if null
+    const state = currentState || createInitialState();
+    
+    console.log("[BlockerAgent] Processing message:", userMessage);
+    console.log("[BlockerAgent] Current state:", JSON.stringify(state, null, 2));
+
+    // 1. Extract intent updates from user message
+    const { updates, acknowledgment } = await extractIntentUpdates(
+      userMessage,
+      state,
+      conversationHistory
+    );
+
+    // 2. Update state with extracted values
+    const updatedState = updateState(state, updates);
+    console.log("[BlockerAgent] Updated state:", JSON.stringify(updatedState, null, 2));
+
+    // 3. Build search params and search for candidates
+    const searchParams: EnrichedSearchParams = {
+      limit: 10,
+      minScore: 0.4,
+    };
+
+    if (updatedState.primaryUseCase) {
+      searchParams.useCase = updatedState.primaryUseCase;
+    }
+    if (updatedState.budget) {
+      searchParams.budget = updatedState.budget;
+    }
+    if (updatedState.skillLevel) {
+      searchParams.skillLevel = updatedState.skillLevel as "beginner" | "intermediate" | "pro" | "expert";
+    }
+    if (updatedState.portabilityPreference) {
+      searchParams.portabilityPreference = updatedState.portabilityPreference;
+    }
+
+    // Only search if we have at least a use case
+    let candidates: EnrichedProduct[] = [];
+    if (updatedState.primaryUseCase) {
+      console.log("[BlockerAgent] Searching with params:", searchParams);
+      const searchResult = await searchEnrichedProducts(searchParams);
+      candidates = searchResult.products;
+      console.log("[BlockerAgent] Found candidates:", candidates.length);
+    }
+
+    // 4. Detect blockers
+    const blockers = detectBlockers(updatedState, candidates);
+    console.log("[BlockerAgent] Detected blockers:", blockers.map(b => b.type));
+
+    // 5. Decision: Ask question or show products
+    if (blockers.length > 0 && !canRecommend(updatedState, candidates)) {
+      // Ask the highest-priority blocker question
+      const topBlocker = getTopBlocker(blockers)!;
+      const question = generateQuestion(topBlocker, candidates);
+      
+      console.log("[BlockerAgent] Asking question for blocker:", topBlocker.type);
+
+      const message = `${acknowledgment} ${question.text}`;
+
+      return {
+        message,
+        state: updatedState,
+        blockers,
+        ui: {
+          type: "question",
+          chips: question.chips,
+          currentQuestion: question,
+        },
+      };
+    }
+
+    // 6. No blockers (or can recommend) - show products with tradeoffs
+    console.log("[BlockerAgent] Showing products with tradeoffs");
+
+    // Build recommendation message
+    let message = acknowledgment;
+    if (candidates.length > 0) {
+      message += " Based on what you've told me, here are some great options:";
+    } else if (updatedState.primaryUseCase) {
+      message += " Let me find some options for you...";
+      // Try a broader search
+      const broadSearchResult = await searchEnrichedProducts({
+        useCase: updatedState.primaryUseCase,
+        limit: 6,
+        minScore: 0.3,
+      });
+      candidates = broadSearchResult.products;
+    }
+
+    if (candidates.length === 0) {
+      // Recovery mode
+      return {
+        message: `${acknowledgment} I couldn't find products matching those exact criteria. Could you try adjusting your requirements?`,
+        state: updatedState,
+        blockers: [],
+        ui: {
+          type: "recovery",
+          chips: [
+            "Show all cameras",
+            "Increase budget",
+            "Different use case",
+          ],
+        },
+      };
+    }
+
+    // Build tradeoffs for display
+    const productTradeoffs: ProductTradeoff[] = candidates.slice(0, 4).map(p => ({
+      productId: p.variantId,
+      tradeoffs: p.tradeoffs,
+    }));
+
+    return {
+      message,
+      state: updatedState,
+      products: candidates.slice(0, 4),
+      blockers: [],
+      ui: {
+        type: "recommendation",
+        tradeoffs: productTradeoffs,
+      },
+    };
+  } catch (error) {
+    console.error("[BlockerAgent] Error:", error);
+    
+    // Fallback response
+    return {
+      message: "I'm having a bit of trouble. Could you tell me what you're looking for?",
+      state: currentState || createInitialState(),
+      blockers: [{
+        type: BlockerType.MISSING_USE_CASE,
+        priority: 1,
+        reason: "Error occurred - need to restart",
+        source: "state",
+        suggestedChips: ["Travel vlogging", "Studio photography", "Events", "Wildlife"],
+      }],
+      ui: {
+        type: "question",
+        chips: ["Travel vlogging", "Studio photography", "Events", "Wildlife"],
+      },
+    };
+  }
+}
+
+/**
+ * Convert legacy state to blocker state
+ */
+export function legacyToBlockerState(legacy: ConversationState): BlockerState {
+  return {
+    primaryUseCase: legacy.intent || legacy.primary_use,
+    budget: legacy.budget_range ? parseBudgetRangeToObject(legacy.budget_range) : null,
+    skillLevel: mapExperienceToSkill(legacy.experience_level),
+    portabilityPreference: null,
+    additionalContext: legacy.primary_use || undefined,
+  };
+}
+
+/**
+ * Parse budget range string to object
+ */
+function parseBudgetRangeToObject(budgetRange: string): { min?: number; max?: number } | null {
+  const parsed = parseBudgetRange(budgetRange);
+  if (parsed.minPrice === undefined && parsed.maxPrice === undefined) {
+    return null;
+  }
+  return {
+    min: parsed.minPrice,
+    max: parsed.maxPrice,
+  };
+}
+
+/**
+ * Map experience level string to skill level
+ */
+function mapExperienceToSkill(experience: string | null): "beginner" | "intermediate" | "pro" | "expert" | null {
+  if (!experience) return null;
+  const lower = experience.toLowerCase();
+  
+  if (lower.includes("beginner") || lower.includes("start") || lower.includes("new")) {
+    return "beginner";
+  }
+  if (lower.includes("intermediate") || lower.includes("some")) {
+    return "intermediate";
+  }
+  if (lower.includes("advanced") || lower.includes("pro")) {
+    return "pro";
+  }
+  if (lower.includes("expert")) {
+    return "expert";
+  }
+  
+  return null;
+}

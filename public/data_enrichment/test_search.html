@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic Search Test - Product Variants</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        
+        .search-container {
+            margin-bottom: 30px;
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        input[type="text"] {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        input[type="text"]:focus {
+            border-color: #667eea;
+        }
+        
+        button {
+            padding: 15px 30px;
+            font-size: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: 600;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .search-options {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .option-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        label {
+            color: #666;
+            font-weight: 500;
+        }
+        
+        input[type="number"], input[type="range"] {
+            padding: 8px;
+            border: 2px solid #e0e0e0;
+            border-radius: 5px;
+            width: 80px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #667eea;
+            font-size: 18px;
+        }
+        
+        .error {
+            background: #fee;
+            color: #c33;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #c33;
+        }
+        
+        .results {
+            margin-top: 30px;
+        }
+        
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .results-count {
+            color: #666;
+            font-size: 1.1em;
+        }
+        
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .result-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+        
+        .variant-id {
+            font-size: 0.9em;
+            color: #999;
+        }
+        
+        .priority-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .priority-1 {
+            background: #10b981;
+            color: white;
+        }
+        
+        .priority-2 {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .priority-3 {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .similarity-score {
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        
+        .product-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .product-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-value {
+            font-size: 1em;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .tag {
+            background: #e0e7ff;
+            color: #4338ca;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+        
+        .match-info {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Semantic Search</h1>
+        <p class="subtitle">Search product variants using natural language queries</p>
+        
+        <div class="search-container">
+            <div class="search-box">
+                <input type="text" id="searchQuery" placeholder="e.g., 'studio photography equipment for professionals'" />
+                <button id="searchBtn" onclick="performSearch()">Search</button>
+            </div>
+            <div class="search-options">
+                <div class="option-group">
+                    <label for="limit">Results:</label>
+                    <input type="number" id="limit" value="10" min="1" max="50" />
+                </div>
+                <div class="option-group">
+                    <label for="minScore">Min Score:</label>
+                    <input type="number" id="minScore" value="0.7" min="0" max="1" step="0.1" />
+                </div>
+            </div>
+        </div>
+        
+        <div id="errorContainer"></div>
+        <div id="resultsContainer"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:5000'; // Change this to your API URL
+        
+        function performSearch() {
+            const query = document.getElementById('searchQuery').value.trim();
+            const limit = parseInt(document.getElementById('limit').value);
+            const minScore = parseFloat(document.getElementById('minScore').value);
+            
+            if (!query) {
+                showError('Please enter a search query');
+                return;
+            }
+            
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.textContent = 'Searching...';
+            
+            const resultsContainer = document.getElementById('resultsContainer');
+            resultsContainer.innerHTML = '<div class="loading">🔍 Searching...</div>';
+            
+            fetch(`${API_URL}/search`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    query: query,
+                    limit: limit,
+                    min_score: minScore
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.textContent = 'Search';
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                displayResults(data);
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btn.textContent = 'Search';
+                showError('Error: ' + error.message);
+            });
+        }
+        
+        function showError(message) {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `<div class="error">${message}</div>`;
+            setTimeout(() => {
+                errorContainer.innerHTML = '';
+            }, 5000);
+        }
+        
+        function displayResults(data) {
+            const container = document.getElementById('resultsContainer');
+            
+            if (data.count === 0) {
+                container.innerHTML = '<div class="loading">No results found. Try a different query.</div>';
+                return;
+            }
+            
+            let html = `
+                <div class="results">
+                    <div class="results-header">
+                        <h2>Search Results</h2>
+                        <div class="results-count">Found ${data.count} result(s)</div>
+                    </div>
+            `;
+            
+            data.results.forEach(result => {
+                const priorityLabels = {1: 'Use Cases', 2: 'Best For', 3: 'Other'};
+                const priorityClass = `priority-${result.priority}`;
+                
+                html += `
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div>
+                                <div class="product-title">${result.product_title || 'Product ' + result.product_id}</div>
+                                <div class="variant-id">Variant ID: ${result.variant_id}</div>
+                            </div>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <span class="priority-badge ${priorityClass}">${priorityLabels[result.priority]}</span>
+                                <span class="similarity-score">${(result.similarity_score * 100).toFixed(1)}% match</span>
+                            </div>
+                        </div>
+                        
+                        <div class="product-info">
+                            <div class="info-item">
+                                <span class="info-label">Skill Level</span>
+                                <span class="info-value">${result.skill_level || 'N/A'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Price Tier</span>
+                                <span class="info-value">${result.price_tier || 'N/A'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Portability</span>
+                                <span class="info-value">${result.portability_score || 'N/A'}/5</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">Confidence</span>
+                                <span class="info-value">${result.confidence_score || 'N/A'}/100</span>
+                            </div>
+                        </div>
+                        
+                        ${result.use_cases && result.use_cases.length > 0 ? `
+                            <div>
+                                <div class="info-label">Use Cases</div>
+                                <div class="tags">
+                                    ${result.use_cases.map(uc => `<span class="tag">${uc}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        ${result.best_for && result.best_for.length > 0 ? `
+                            <div style="margin-top: 10px;">
+                                <div class="info-label">Best For</div>
+                                <div class="tags">
+                                    ${result.best_for.map(bf => `<span class="tag">${bf}</span>`).join('')}
+                                </div>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="match-info">
+                            <strong>Matched:</strong> ${result.embedding_type} - "${result.embedding_text}"
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        // Allow Enter key to trigger search
+        document.getElementById('searchQuery').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+    </script>
+</body>
+</html>
+

@@ -59,6 +59,7 @@ export interface ProductResult {
   matchedUseCases: string[];  // The use_cases that matched
   skillLevel?: string | null;
   priceTier?: string | null;
+  productType?: string | null;  // The product_type from DB
 }
 
 /**
@@ -143,13 +144,15 @@ function determineMatchType(similarity: number, matchSource: string): MatchType 
  * @param priceMax - Optional maximum price filter (filters variants->0->>'price')
  * @param skillLevel - Optional skill level filter ('beginner' | 'intermediate' | 'pro')
  * @param limit - Max results to return
+ * @param titleKeywords - Optional keywords to filter by in product title/tags (e.g., ['APS-C', 'Micro Four Thirds'])
  */
 export async function searchProducts(
   useCaseText: string,
   priceMin?: number | null,
   priceMax?: number | null,
   skillLevel?: string | null,
-  limit: number = 6
+  limit: number = 6,
+  titleKeywords?: string[] | null
 ): Promise<SearchResult> {
   // Validate useCaseText is not null or empty
   if (!useCaseText || useCaseText.trim() === "" || useCaseText === "null" || useCaseText === "Null") {
@@ -370,9 +373,31 @@ export async function searchProducts(
       };
     });
 
-    // Sort by similarity and limit
+    // Sort by similarity
     products.sort((a, b) => b.matchScore - a.matchScore);
-    const limited = products.slice(0, limit);
+    
+    // If titleKeywords provided (e.g., sensor sizes), filter/boost products matching those keywords
+    let filteredProducts = products;
+    if (titleKeywords && titleKeywords.length > 0) {
+      const keywords = titleKeywords.map(k => k.toLowerCase());
+      console.log(`[SimpleSearch] Filtering by title keywords:`, keywords);
+      
+      // Filter to products with matching keywords in title
+      const matchingProducts = products.filter(p => {
+        const titleLower = p.title.toLowerCase();
+        return keywords.some(kw => titleLower.includes(kw));
+      });
+      
+      // If we found matches, use them; otherwise fall back to all results
+      if (matchingProducts.length > 0) {
+        console.log(`[SimpleSearch] Found ${matchingProducts.length} products matching keywords`);
+        filteredProducts = matchingProducts;
+      } else {
+        console.log(`[SimpleSearch] No products matched keywords, using all results`);
+      }
+    }
+    
+    const limited = filteredProducts.slice(0, limit);
 
     // Determine overall match quality
     const hasExactMatches = limited.some(p => p.matchType === 'exact');
@@ -383,7 +408,7 @@ export async function searchProducts(
     console.log(`[SimpleSearch] Found ${limited.length} products (exact matches: ${hasExactMatches}, best type: ${bestMatchType})`);
     return { 
       products: limited, 
-      totalMatches: products.length,
+      totalMatches: filteredProducts.length,
       hasExactMatches,
       bestMatchType,
     };
@@ -396,8 +421,29 @@ export async function searchProducts(
 }
 
 /**
+ * Accessory keywords to exclude when searching for main product types
+ */
+const ACCESSORY_KEYWORDS = [
+  'strap', 'bag', 'case', 'cover', 'holder', 'mount', 'adapter', 'cable', 
+  'charger', 'battery', 'cap', 'hood', 'filter', 'cleaning', 'protector',
+  'remote', 'tripod stand', 'plate', 'bracket', 'grip', 'cage', 'sponge',
+  'windshield', 'suction cup', 'memory card', 'sd card', 'blower', 'kit',
+  'rain cover', 'viewfinder', 'magnifier', 'storage', 'connection', 'clip',
+  'detector', 'accessory', 'accessories'
+];
+
+/**
+ * Check if a title indicates an accessory product
+ */
+function isAccessoryProduct(title: string): boolean {
+  const titleLower = title.toLowerCase();
+  return ACCESSORY_KEYWORDS.some(kw => titleLower.includes(kw));
+}
+
+/**
  * Search products by product type (tripod, light, camera, etc.)
- * Searches in product title, tags, and product_type fields
+ * Prioritizes product_type field matches over title matches
+ * Filters out accessories when searching for main products like "camera"
  */
 export async function searchProductsByType(
   productType: string,
@@ -419,6 +465,9 @@ export async function searchProductsByType(
   try {
     const normalizedType = productType.trim().toLowerCase();
     console.log(`[SimpleSearch] Searching for product type: "${normalizedType}"`);
+    
+    // For main product types, we want to exclude accessories
+    const isMainProductSearch = ['camera', 'lens', 'tripod', 'light', 'microphone'].includes(normalizedType);
 
     const sql = `
       SELECT DISTINCT
@@ -429,14 +478,16 @@ export async function searchProductsByType(
         kev.price_tier,
         lp.title,
         lp.handle,
+        lp.product_type,
         lp.variants,
         lp.images,
-        -- Calculate match score based on where the match was found
+        -- Calculate match score: prioritize product_type matches over title matches
         CASE
-          WHEN LOWER(lp.title) LIKE '%' || $1::text || '%' THEN 0.9
-          WHEN LOWER(COALESCE(lp.product_type, '')) LIKE '%' || $1::text || '%' THEN 0.85
+          WHEN LOWER(COALESCE(lp.product_type, '')) LIKE '%' || $1::text || '%' THEN 0.95
+          WHEN LOWER(lp.title) LIKE $1::text || ' %' OR LOWER(lp.title) LIKE '% ' || $1::text OR LOWER(lp.title) = $1::text THEN 0.9
           WHEN LOWER(COALESCE(lp.tags, '')) LIKE '%' || $1::text || '%' THEN 0.8
-          ELSE 0.7
+          WHEN LOWER(lp.title) LIKE '%' || $1::text || '%' THEN 0.7
+          ELSE 0.5
         END as match_score,
         -- Include price in SELECT for ORDER BY
         (lp.variants->0->>'price')::numeric as price
@@ -444,8 +495,8 @@ export async function searchProductsByType(
       JOIN kb_enriched_variants kev ON lp.id = kev.product_id
       WHERE 
         (
-          LOWER(lp.title) LIKE '%' || $1::text || '%'
-          OR LOWER(COALESCE(lp.product_type, '')) LIKE '%' || $1::text || '%'
+          LOWER(COALESCE(lp.product_type, '')) LIKE '%' || $1::text || '%'
+          OR LOWER(lp.title) LIKE '%' || $1::text || '%'
           OR LOWER(COALESCE(lp.tags, '')) LIKE '%' || $1::text || '%'
         )
         AND ($2::numeric IS NULL OR (lp.variants->0->>'price')::numeric >= $2::numeric)
@@ -454,16 +505,17 @@ export async function searchProductsByType(
       LIMIT $4::int
     `;
 
+    // Request more results to have buffer after filtering
     const result = await client.query(sql, [
       normalizedType,
       priceMin || null,
       priceMax || null,
-      limit,
+      limit * 3, // Get more to allow for filtering
     ]);
 
     console.log(`[SimpleSearch] Query returned ${result.rows.length} rows`);
     
-    const products: ProductResult[] = result.rows.map((row) => ({
+    let products: ProductResult[] = result.rows.map((row) => ({
       productId: Number(row.product_id),
       variantId: Number(row.variant_id),
       title: row.title || "",
@@ -475,7 +527,29 @@ export async function searchProductsByType(
       matchedUseCases: Array.isArray(row.use_cases) ? row.use_cases : [],
       skillLevel: row.skill_level || null,
       priceTier: row.price_tier || null,
+      productType: row.product_type || null,
     }));
+
+    // For main product searches, filter out accessories
+    if (isMainProductSearch) {
+      const beforeFilter = products.length;
+      products = products.filter(p => {
+        // Keep if product_type matches directly
+        if (p.productType && p.productType.toLowerCase().includes(normalizedType)) {
+          return true;
+        }
+        // Filter out accessories
+        if (isAccessoryProduct(p.title)) {
+          console.log(`[SimpleSearch] Filtering out accessory: "${p.title}"`);
+          return false;
+        }
+        return true;
+      });
+      console.log(`[SimpleSearch] Filtered ${beforeFilter - products.length} accessories`);
+    }
+
+    // Limit to requested amount
+    products = products.slice(0, limit);
 
     console.log(`[SimpleSearch] Found ${products.length} products by type`);
     return {

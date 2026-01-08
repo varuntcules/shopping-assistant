@@ -48,6 +48,7 @@ export async function POST(request: NextRequest) {
       price_min: collectedInfo.price_min ?? null,
       price_max: collectedInfo.price_max ?? null,
       skill_level: collectedInfo.skill_level ?? null,
+      educationalContext: collectedInfo.educationalContext ?? null,
     } : null;
 
     // Process message with current collected info

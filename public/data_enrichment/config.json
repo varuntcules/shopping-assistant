@@ -1,0 +1,119 @@
+{
+  "database": {
+    "url": "postgresql://postgres.aorwlucrbdhneoxiuzpi:OsbMYVnSnTaQFmoE@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres"
+  },
+  "gemini": {
+    "api_key": "AIzaSyDnC4Y2Vu7OhwvBTc95sr4U9rX6irrgeg8",
+    "model": "gemini-2.5-flash-preview-09-2025",
+    "embedding_model": "models/embedding-001",
+    "embedding_dimensions": 768,
+    "max_retries": 3,
+    "delay_between_calls": 0.5
+  },
+  "processing": {
+    "products_to_process": 250,
+    "batch_size": 1,
+    "skip_processed_variants": true
+  },
+  "prompt_template": {
+    "introduction": "You are an expert product analyst specializing in e-commerce product enrichment. Analyze the following product information and provide a comprehensive JSON response.",
+    "product_information_section": {
+      "header": "Product Information:",
+      "fields": [
+        "Product_Title: {product_title}",
+        "Variant_Title: {variant_title}",
+        "Variant_Price: {variant_price}",
+        "Product_Tags: {tags}",
+        "Product_Description: {product_description}"
+      ]
+    },
+    "task_description": "Your task is to analyze this product variant and provide structured information in the following JSON format:",
+    "json_format": {
+      "variant_id": "<variant_id placeholder>",
+      "product_id": "<product_id placeholder>",
+      "use_cases": ["case1", "case2"],
+      "skill_level": "beginner|intermediate|pro|expert",
+      "portability_score": "<0-5>",
+      "price_tier": "budget|low|mid|high|premium",
+      "best_for": ["target audience1", "target audience2"],
+      "not_best_for": ["unsuitable audience1", "unsuitable audience2"],
+      "tradeoffs": ["tradeoff1", "tradeoff2"],
+      "confidence_notes": ["note1", "note2"],
+      "confidence_score":"<0-100>",
+      "ambiguity_triggers": ["trigger1", "trigger2"]
+    },
+    "guidelines": {
+      "use_cases": {
+        "description": "Identify 2-5 specific use cases dont stick to only the specified examples, be creative and think of other use cases that are not listed here",
+        "examples": ["studio photography", "outdoor shooting", "product photography", "travel vlogging", "food photography", "event photography", "portrait photography", "landscape photography", "macro photography", "underwater photography", "night photography", "sports photography", "wildlife photography", "street photography", "product photography", "event photography", "portrait photography", "landscape photography", "macro photography", "underwater photography", "night photography", "sports photography", "wildlife photography", "street photography"],
+        "format": "Use lowercase with underscores"
+      },
+      "skill_level": {
+        "description": "Determine the required skill level",
+        "options": {
+          "beginner": "Easy to use, minimal experience needed",
+          "intermediate": "Some experience or learning required",
+          "pro": "Professional level, significant experience needed",
+          "expert": "Master-level expertise required"
+        }
+      },
+      "portability_score": {
+        "description": "Rate portability from 1-5",
+        "scale": {
+          "1": "Very portable, lightweight, easy to carry",
+          "2": "Portable, slightly bulky",
+          "3": "Moderate portability",
+          "4": "Not very portable, requires setup",
+          "5": "Not portable, stationary/studio use only"
+        }
+      },
+      "price_tier": {
+        "description": "Categorize based on variant price",
+        "options": {
+          "budget": "Very affordable, entry-level pricing, <2500-5000 INR>",
+          "low": "Low-mid range pricing, <5000-10000 INR>",
+          "mid": "Mid-range pricing, <10000-20000 INR>",
+          "high": "High-end pricing, <20000-50000 INR>",
+          "premium": "Premium/luxury pricing, >50000 INR"
+        }
+      },
+      "best_for": {
+        "description": "List 2-4 specific target audiences or scenarios where this product excels",
+        "instruction": "Be specific (e.g., \"experienced photographers\", \"studio environments\")"
+      },
+      "not_best_for": {
+        "description": "List 2-4 scenarios or audiences where this product is not ideal",
+        "instruction": "Be honest and specific"
+      },
+      "tradeoffs": {
+        "description": "List 2-4 key tradeoffs or limitations of this product variant",
+        "instruction": "Focus on important considerations"
+      },
+      "confidence_notes": {
+        "description": "Add 1-2 notes about confidence level or important considerations when using this data"
+      },
+      "confidence_score": {
+        "description": "Rate confidence level from 0-100",
+        "scale": {
+          "0": "Very low confidence",
+          "25": "Low confidence",
+          "50": "Medium confidence",
+          "75": "High confidence",
+          "100": "Very high confidence"
+        }
+      },
+      "ambiguity_triggers": {
+        "description": "If any information is unclear or ambiguous, list what's missing or uncertain",
+        "examples": ["experience level unclear", "price range ambiguous"]
+      }
+    },
+    "important_instructions": [
+      "Return ONLY valid JSON, no markdown formatting or code blocks",
+      "All arrays should have at least 1 item (except ambiguity triggers can be empty array if nothing is ambiguous)",
+      "Be specific and accurate based on the product information provided",
+      "If information is insufficient, note it in ambiguity_triggers",
+      "Use consistent naming conventions (lowercase with underscores)"
+    ],
+    "closing": "Now analyze the product and return the JSON response:"
+  }
+}

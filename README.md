@@ -5,6 +5,7 @@ A voice-enabled shopping assistant MVP built with Next.js (App Router), TypeScri
 ## Features
 
 - 🎤 **Voice Input**: Speak to search for products (Chrome/Edge recommended)
+- 🔊 **Text-to-Speech**: Natural-sounding voice responses with product recommendations (ElevenLabs)
 - 🤖 **AI-Powered**: Gemini converts natural language to semantic search
 - 🧠 **Knowledge Base**: Hosted vector store backed by Postgres+pgvector (e.g., Supabase)
 - 🏷️ **Smart Tagging**: Gemini-generated tags + rule-based synonyms and price tiers
@@ -74,6 +75,10 @@ SHOPIFY_ADMIN_API_VERSION="2025-10"
 # Optional: Sync secret (leave empty for no auth)
 SYNC_SECRET=""
 
+# ElevenLabs TTS (optional - for voice responses)
+ELEVENLABS_API_KEY="your_elevenlabs_api_key"
+ELEVENLABS_VOICE_ID="21m00Tcm4TlvDq8ikWAM"  # Optional: default voice ID
+
 # Database (Supabase or any Postgres+pgvector)
 DATABASE_URL="postgres://user:password@host:5432/dbname"
 DB_SSL="true"
@@ -102,6 +107,8 @@ npm run dev
 | `SHOPIFY_ADMIN_API_TOKEN` | ✅ | - | Admin API access token |
 | `SHOPIFY_ADMIN_API_VERSION` | ❌ | `2025-10` | Admin API version |
 | `SYNC_SECRET` | ❌ | - | Optional secret for sync endpoint |
+| `ELEVENLABS_API_KEY` | ❌ | - | ElevenLabs API key for text-to-speech (optional) |
+| `ELEVENLABS_VOICE_ID` | ❌ | `21m00Tcm4TlvDq8ikWAM` | ElevenLabs voice ID (optional) |
 | `DATABASE_URL` | ✅ (prod) | - | Postgres connection string (Supabase or similar) |
 | `DB_SSL` | ❌ | `true` | Set to `false` if your Postgres instance does not require SSL |
 
@@ -145,6 +152,12 @@ Add to your crontab (runs at 2 AM daily):
 1. Type your query in the text box
 2. Press Enter or click Send
 
+### Text-to-Speech (TTS)
+1. Click the TTS toggle button in the header to enable voice responses
+2. When enabled, assistant responses will automatically play as speech
+3. Product recommendations are spoken with names and prices in INR (rupees)
+4. TTS preference is saved and persists across page reloads
+
 ### Example Queries
 - "Show me sneakers under 5000 rupees"
 - "Find the latest smartphones"
@@ -161,11 +174,14 @@ app/
 ├── api/
 │   ├── assistant/
 │   │   └── route.ts        # Chat API (uses knowledge base)
+│   ├── tts/
+│   │   └── route.ts        # Text-to-speech API (ElevenLabs)
 │   └── sync/
 │       └── route.ts        # Sync trigger endpoint
 components/
 ├── Chat.tsx                # Chat message display
 ├── VoiceInput.tsx          # Voice recording component
+├── TTSToggle.tsx           # TTS enable/disable toggle
 └── ProductGrid.tsx         # Product cards grid
 lib/
 ├── types.ts                # TypeScript interfaces
@@ -174,6 +190,8 @@ lib/
 ├── productEnricher.ts      # Smart tagging (Gemini + rules)
 ├── vectorStore.ts          # Postgres+pgvector wrapper
 ├── knowledgeBase.ts        # Orchestration layer
+├── useTextToSpeech.ts      # TTS React hook
+├── formatProductText.ts    # Format products for TTS
 ├── shopify.ts              # Legacy Storefront API (unused)
 └── shopifyAdmin.ts         # Admin API client
 scripts/
@@ -290,6 +308,11 @@ After this one-time setup, any commit merged to the main branch will deploy succ
 - Voice input requires HTTPS in production (localhost is exempt)
 - Use Chrome, Edge, or Safari
 - Check browser microphone permissions
+
+### TTS not working
+- Ensure `ELEVENLABS_API_KEY` is set in `.env.local`
+- Check browser console for TTS API errors
+- TTS will gracefully fail if API key is missing (chat still works)
 
 ## License
 

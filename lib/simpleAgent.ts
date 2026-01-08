@@ -12,6 +12,19 @@ import { ProductResult, searchProducts, searchProductsByType } from "./simpleSea
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY!;
 
 /**
+ * Educational context stored from educational content turns
+ */
+export interface EducationalContext {
+  topic: string;              // e.g., "sensor sizes"
+  relatedUseCases: string[];  // e.g., ["travel vlogging", "low light"]
+  // Additional discussed attributes from education
+  recommendedSensorSizes?: string[];  // e.g., ["APS-C", "Micro Four Thirds"]
+  recommendedFeatures?: string[];     // e.g., ["lightweight", "portable", "good low light"]
+  keyTakeaways?: string[];            // Key points the user should remember
+  timestamp: number;
+}
+
+/**
  * Collected information state
  */
 export interface CollectedInfo {
@@ -20,6 +33,8 @@ export interface CollectedInfo {
   price_min: number | null;
   price_max: number | null;
   skill_level: string | null; // 'beginner' | 'intermediate' | 'pro'
+  // Store educational context for subsequent turns
+  educationalContext: EducationalContext | null;
 }
 
 /**
@@ -43,7 +58,7 @@ const extractionSchema = {
   properties: {
     use_case: { 
       type: Type.STRING, 
-      description: "The use case extracted from user message (e.g., 'travel vlogging', 'studio photography'). Return null if not mentioned." 
+      description: "The use case extracted from user message (e.g., 'travel vlogging', 'studio photography'). If educational context is provided and user references that discussion, infer use_case from context. Return null if not mentioned and no context inference possible." 
     },
     product_type: {
       type: Type.STRING,
@@ -73,6 +88,9 @@ const systemPrompt = `You are a helpful camera store assistant. Extract informat
 
 EXTRACTION RULES:
 - Extract use_case if mentioned (travel vlogging, studio photography, wildlife, events, etc.)
+- IMPORTANT: If educational context is provided, use it to infer use_case when the user references that discussion
+  - If user says "that makes sense", "I'll go with APS-C", "show me products with that" after learning about travel vlogging → infer use_case from context
+  - The educational context tells you what the previous conversation was about
 - Extract product_type if user is asking for a specific product category (tripod, light, camera, lens, microphone, etc.)
   - Examples: "show me tripods" → product_type: "tripod"
   - "I need lights" → product_type: "light"
@@ -88,19 +106,49 @@ Examples:
 - "under 50k" → price_max: 50000
 - "50000 to 100000" → price_min: 50000, price_max: 100000
 - "I'm a beginner" → skill_level: "beginner"
-- "for professionals" → skill_level: "pro"`;
+- "for professionals" → skill_level: "pro"
+- (with educational context about "travel vlogging") "APS-C makes sense, show me options" → use_case: "travel vlogging"`;
 
 /**
  * Extract search params from user message using Gemini
+ * @param message - The user's message to extract params from
+ * @param educationalContext - Optional context from previous educational content
  */
 async function extractSearchParams(
-  message: string
+  message: string,
+  educationalContext?: EducationalContext | null
 ): Promise<{ useCase: string | null; productType: string | null; priceMin: number | null; priceMax: number | null; skillLevel: string | null; acknowledgment: string }> {
   try {
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     
-    const prompt = `User message: "${message}"
+    // Build context hint from educational context if available
+    let contextHint = '';
+    if (educationalContext) {
+      const parts: string[] = [];
+      parts.push(`User was learning about "${educationalContext.topic}"`);
+      
+      if (educationalContext.relatedUseCases?.length) {
+        parts.push(`related to use cases: ${educationalContext.relatedUseCases.join(', ')}`);
+      }
+      
+      if (educationalContext.recommendedSensorSizes?.length) {
+        parts.push(`Recommended sensor sizes for this use case: ${educationalContext.recommendedSensorSizes.join(', ')}`);
+      }
+      
+      if (educationalContext.recommendedFeatures?.length) {
+        parts.push(`Key features discussed: ${educationalContext.recommendedFeatures.join(', ')}`);
+      }
+      
+      contextHint = `\nPrevious educational context: ${parts.join('. ')}.
+If the user's message references or follows up on that educational discussion (e.g., mentions "lightweight", "portable", sensor sizes, or says "show me options", "that makes sense", etc.), infer the use_case and product_type from this context.
+- If user mentions "lightweight" or "portable" after learning about APS-C/Micro Four Thirds, they want cameras with those sensor sizes.
+- Map educational recommendations to search: use the relatedUseCases for use_case, and include sensor preferences in the search.`;
+      
+      console.log("[SimpleAgent] Using educational context:", JSON.stringify(educationalContext));
+    }
 
+    const prompt = `User message: "${message}"
+${contextHint}
 Extract any use case and price information:`;
 
     const response = await ai.models.generateContent({
@@ -178,6 +226,7 @@ export function createInitialState(): CollectedInfo {
     price_min: null,
     price_max: null,
     skill_level: null,
+    educationalContext: null,
   };
 }
 
@@ -194,8 +243,8 @@ export async function processMessage(
   const info = currentInfo || createInitialState();
   console.log("[SimpleAgent] Current info:", JSON.stringify(info));
 
-  // Extract new information from user message
-  const { useCase, productType, priceMin, priceMax, skillLevel, acknowledgment } = await extractSearchParams(message);
+  // Extract new information from user message, passing educational context for inference
+  const { useCase, productType, priceMin, priceMax, skillLevel, acknowledgment } = await extractSearchParams(message, info.educationalContext);
   
   // Check if user explicitly said "no budget limit" or wants to increase/remove budget
   const messageLower = message.toLowerCase();
@@ -227,17 +276,43 @@ export async function processMessage(
     price_min: noBudgetLimit ? null : (priceMin ?? info.price_min),
     price_max: noBudgetLimit ? null : (priceMax ?? info.price_max),
     skill_level: skillLevel ?? info.skill_level,
+    // Preserve educational context from previous turns
+    educationalContext: info.educationalContext,
   };
   
   console.log("[SimpleAgent] Updated info:", JSON.stringify(updatedInfo));
 
-  // Check if user is asking for a specific product type (tripod, light, etc.)
-  if (updatedInfo.product_type) {
+  // Determine search strategy:
+  // - If we have a use_case (especially from educational context), prefer use_case search
+  // - Use product_type search when user asks for a product type WITHOUT use_case context
+  // - Allow browsing by product type (including cameras) when user explicitly requests it
+  const hasUseCaseContext = updatedInfo.use_case || updatedInfo.educationalContext?.relatedUseCases?.length;
+  
+  // Check if user explicitly wants to browse by product type (e.g., "just cameras", "show me cameras", "I want cameras")
+  const explicitProductTypeRequest = updatedInfo.product_type && 
+    !hasUseCaseContext &&
+    (messageLower.includes('just') || 
+     messageLower.includes('show me') || 
+     messageLower.includes('i want') ||
+     messageLower.includes('find me') ||
+     messageLower.includes('browse') ||
+     messageLower.includes('for now') || // "Just the camera for now"
+     messageLower.includes('only')); // "camera only"
+  
+  // Allow product type search if:
+  // 1. User has product_type AND no use_case context
+  // 2. AND either: (a) it's an explicit request, OR (b) it's not a camera (cameras normally need use_case, but allow if explicit)
+  const shouldUseProductTypeSearch = updatedInfo.product_type && 
+    !hasUseCaseContext && 
+    (explicitProductTypeRequest || !['camera', 'cameras'].includes(updatedInfo.product_type.toLowerCase()));
+  
+  // Check if user is asking for a specific product type WITHOUT use_case context
+  if (shouldUseProductTypeSearch) {
     // Search by product type
     console.log("[SimpleAgent] Searching by product type:", updatedInfo.product_type, "price:", updatedInfo.price_min, "-", updatedInfo.price_max);
     
     const searchResult = await searchProductsByType(
-      updatedInfo.product_type,
+      updatedInfo.product_type!, // Safe: checked in shouldUseProductTypeSearch
       updatedInfo.price_min,
       updatedInfo.price_max,
       6
@@ -248,7 +323,7 @@ export async function processMessage(
       if (updatedInfo.price_min || updatedInfo.price_max) {
         console.log("[SimpleAgent] No results with price filter, trying without price filter");
         const searchWithoutPrice = await searchProductsByType(
-          updatedInfo.product_type,
+          updatedInfo.product_type!, // Safe: checked in shouldUseProductTypeSearch
           null,
           null,
           6
@@ -285,6 +360,31 @@ export async function processMessage(
         type: "recommendation",
       },
     };
+  }
+
+  // If we have product_type but no use_case, try searching by product type as fallback
+  // This handles cases like "Just the camera" where user wants to browse without specifying use case
+  if (updatedInfo.product_type && !updatedInfo.use_case) {
+    console.log("[SimpleAgent] Fallback: Searching by product type without use_case:", updatedInfo.product_type);
+    
+    const searchResult = await searchProductsByType(
+      updatedInfo.product_type,
+      updatedInfo.price_min,
+      updatedInfo.price_max,
+      6
+    );
+
+    if (searchResult.products.length > 0) {
+      return {
+        message: `${acknowledgment} Here are some ${updatedInfo.product_type}s:`,
+        products: searchResult.products,
+        collectedInfo: updatedInfo,
+        ui: {
+          type: "recommendation",
+        },
+      };
+    }
+    // If no products found, continue to ask for use_case
   }
 
   // If no product type, continue with use case search
@@ -338,19 +438,75 @@ export async function processMessage(
   // Clean and normalize use_case
   const cleanUseCase = updatedInfo.use_case.trim();
 
-  // We have enough information → search products
+  // PRIORITY: If we have a specific product_type (like "webcam", "tripod", etc.), 
+  // prioritize product_type search over use_case search, especially for non-camera products
+  // This handles cases like "video calling" + "webcam" where "video calling" is too generic
+  const hasSpecificProductType = updatedInfo.product_type && 
+    !['camera', 'cameras'].includes(updatedInfo.product_type.toLowerCase());
+  
+  if (hasSpecificProductType) {
+    console.log("[SimpleAgent] Prioritizing product_type search:", updatedInfo.product_type, "over use_case:", cleanUseCase);
+    
+    const productTypeSearch = await searchProductsByType(
+      updatedInfo.product_type,
+      updatedInfo.price_min,
+      updatedInfo.price_max,
+      6
+    );
+    
+    if (productTypeSearch.products.length > 0) {
+      return {
+        message: `${acknowledgment} Here are some ${updatedInfo.product_type}s${updatedInfo.use_case ? ` for ${updatedInfo.use_case}` : ''}:`,
+        products: productTypeSearch.products,
+        collectedInfo: updatedInfo,
+        ui: {
+          type: "recommendation",
+        },
+      };
+    }
+    // If product_type search fails, fall through to use_case search
+    console.log("[SimpleAgent] Product type search returned no results, trying use_case search");
+  }
+
+  // We have enough information → search products by use_case
   // Note: skill_level is optional - we can search without it, but it helps refine results
-  console.log("[SimpleAgent] Searching with use_case:", cleanUseCase, "price:", updatedInfo.price_min, "-", updatedInfo.price_max, "skill:", updatedInfo.skill_level);
+  // Get sensor preferences from educational context for filtering
+  const sensorKeywords = updatedInfo.educationalContext?.recommendedSensorSizes || null;
+  
+  console.log("[SimpleAgent] Searching with use_case:", cleanUseCase, "price:", updatedInfo.price_min, "-", updatedInfo.price_max, "skill:", updatedInfo.skill_level, "sensorKeywords:", sensorKeywords);
   
   const searchResult = await searchProducts(
     cleanUseCase,
     updatedInfo.price_min,
     updatedInfo.price_max,
     updatedInfo.skill_level,
-    6
+    6,
+    sensorKeywords
   );
 
   if (searchResult.products.length === 0) {
+    // If use_case search failed and we have a product_type, try product_type search as fallback
+    if (updatedInfo.product_type && !hasSpecificProductType) {
+      console.log("[SimpleAgent] Use_case search failed, trying product_type search as fallback:", updatedInfo.product_type);
+      const productTypeSearch = await searchProductsByType(
+        updatedInfo.product_type,
+        updatedInfo.price_min,
+        updatedInfo.price_max,
+        6
+      );
+      
+      if (productTypeSearch.products.length > 0) {
+        return {
+          message: `${acknowledgment} Here are some ${updatedInfo.product_type}s:`,
+          products: productTypeSearch.products,
+          collectedInfo: updatedInfo,
+          ui: {
+            type: "recommendation",
+          },
+        };
+      }
+    }
+    
     // If we have price filters and no results, try searching without price filters
     if (updatedInfo.price_min || updatedInfo.price_max) {
       console.log("[SimpleAgent] No results with price filter, trying without price filter");
@@ -359,7 +515,8 @@ export async function processMessage(
         null, // Remove price filters
         null,
         updatedInfo.skill_level,
-        6
+        6,
+        sensorKeywords
       );
       
       if (searchWithoutPrice.products.length > 0) {

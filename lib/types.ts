@@ -5,6 +5,7 @@ export interface ChatMessage {
   products?: ProductCard[];
   ui?: AssistantUIModel;
   confidence?: number; // 0-1 confidence score (only for assistant messages)
+  generatedUI?: GeneratedUIBlock[]; // Generative UI blocks from model-driven tools
 }
 
 // Product card for display
@@ -47,6 +48,45 @@ export interface AssistantUIModel {
     };
   };
 }
+
+// Generative UI blocks produced by model-driven tools
+export type GeneratedUIBlock =
+  | {
+      kind: "education";
+      title?: string;
+      body?: string;
+      sections?: Array<{ title: string; description: string }>;
+      bullets?: string[];
+    }
+  | {
+      kind: "comparison";
+      summary?: string;
+      items: Array<{
+        title: string;
+        price?: string;
+        imageUrl?: string | null;
+        badges?: string[];
+        specs?: Record<string, string>;
+        pros?: string[];
+        cons?: string[];
+      }>;
+    }
+  | {
+    kind: "filters";
+    heading?: string;
+    chips?: string[];
+    ranges?: Array<{ label: string; min?: number; max?: number }>;
+  }
+  | {
+      kind: "productGrid";
+      title?: string;
+      products: ProductCard[];
+    }
+  | {
+      kind: "question";
+      prompt: string;
+      chips?: string[];
+    };
 
 // Full assistant response
 export interface AssistantResponse {
@@ -101,7 +141,7 @@ export interface AssistantRequestBody {
   conversationState?: RetailConversationState; // For retail agent
 }
 
-// Retail conversation state
+// Retail conversation state (legacy - for backwards compatibility)
 export interface RetailConversationState {
   intent: string | null;
   primary_use: string | null;
@@ -110,7 +150,44 @@ export interface RetailConversationState {
   constraints_locked: boolean;
 }
 
-// Retail product (from Supabase)
+// New blocker-driven conversation state
+export interface BlockerConversationState {
+  // Primary use case - HIGHEST PRIORITY (~80% elimination)
+  primaryUseCase: string | null;
+
+  // Budget range - HIGH PRIORITY (~60% elimination)
+  budget: { min?: number; max?: number } | null;
+
+  // Skill level - MEDIUM PRIORITY (~40% elimination)
+  skillLevel: "beginner" | "intermediate" | "pro" | "expert" | null;
+
+  // Portability preference - LOW PRIORITY (~30% elimination)
+  portabilityPreference: "portable" | "quality" | "balanced" | null;
+
+  // Additional context from conversation
+  additionalContext?: string;
+}
+
+// Blocker types that prevent confident recommendations
+export enum BlockerType {
+  MISSING_USE_CASE = "MISSING_USE_CASE",
+  BUDGET_UNCLEAR = "BUDGET_UNCLEAR",
+  SKILL_MISMATCH = "SKILL_MISMATCH",
+  PORTABILITY_TRADEOFF = "PORTABILITY_TRADEOFF",
+  AMBIGUITY_FROM_PRODUCT = "AMBIGUITY_FROM_PRODUCT",
+}
+
+// A blocker that prevents confident recommendation
+export interface Blocker {
+  type: BlockerType;
+  priority: number; // 1 = highest priority
+  reason: string; // Human-readable explanation
+  source: "state" | "product"; // Where the blocker came from
+  relatedProducts?: number[]; // Product IDs that triggered this blocker
+  suggestedChips?: string[]; // Quick response options
+}
+
+// Retail product (from Supabase products_dummy - legacy)
 export interface RetailProduct {
   id: string;
   name: string;
@@ -121,7 +198,36 @@ export interface RetailProduct {
   imageUrl?: string;
 }
 
-// Retail agent response
+// Enriched product from kb_enriched_variants + latest_product
+export interface EnrichedProductType {
+  productId: number;
+  variantId: number;
+  title: string;
+  handle: string;
+  price: number;
+  imageUrl: string | null;
+  // Enriched fields from Gemini
+  useCases: string[];
+  skillLevel: string | null;
+  portabilityScore: number | null;
+  priceTier: string | null;
+  bestFor: string[];
+  notBestFor: string[];
+  tradeoffs: string[];
+  ambiguityTriggers: string[];
+  confidenceScore: number | null;
+  // Search scoring
+  matchScore: number;
+  matchedFields: Record<string, { text: string; similarity: number }>;
+}
+
+// Product tradeoff info for display
+export interface ProductTradeoff {
+  productId: number;
+  tradeoffs: string[];
+}
+
+// Retail agent response (legacy)
 export interface RetailAgentResponse {
   assistantMessage: string;
   state: RetailConversationState;
@@ -140,5 +246,27 @@ export interface RetailAgentResponse {
     };
   };
   confidence: number; // 0-1 confidence score based on state completeness
+}
+
+// New blocker-driven agent response
+export interface BlockerAgentResponse {
+  assistantMessage: string;
+  state: BlockerConversationState;
+  products?: EnrichedProductType[];
+  blockers: Blocker[];
+  ui: {
+    type: "question" | "recommendation" | "comparison" | "checkout" | "confirmation" | "recovery";
+    chips?: string[];
+    tradeoffs?: ProductTradeoff[]; // Shown when recommending products
+    comparison?: {
+      productA: EnrichedProductType;
+      productB: EnrichedProductType;
+      tradeoffs: string[];
+    };
+    checkout?: {
+      items: EnrichedProductType[];
+      total: number;
+    };
+  };
 }
 

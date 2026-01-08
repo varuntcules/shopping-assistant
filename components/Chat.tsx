@@ -1,11 +1,18 @@
 "use client";
 
-import { ChatMessage, UIMode, AssistantUIModel } from "@/lib/types";
+import { ChatMessage, UIMode, AssistantUIModel, GeneratedUIBlock } from "@/lib/types";
 import ProductGrid from "./ProductGrid";
 import QuickChips from "./QuickChips";
 import ProductComparison from "./ProductComparison";
 import CheckoutView from "./CheckoutView";
-import { useState } from "react";
+import { CustomProductGrid } from "./generative/CustomProductGrid";
+import { EducationalBlock } from "./generative/EducationalBlock";
+import { ProductComparisonTable } from "./generative/ProductComparisonTable";
+import { InteractiveFilters } from "./generative/InteractiveFilters";
+import { DynamicQuestion } from "./generative/DynamicQuestion";
+import { useState, useEffect, useRef } from "react";
+import { useTextToSpeech } from "@/lib/useTextToSpeech";
+import { formatMessageForTTS } from "@/lib/formatProductText";
 
 interface ChatProps {
   messages: ChatMessage[];
@@ -14,6 +21,30 @@ interface ChatProps {
 }
 
 export default function Chat({ messages, isLoading, onChipSelect }: ChatProps) {
+  const { speak, isEnabled } = useTextToSpeech();
+  const lastSpokenIndexRef = useRef<number>(-1);
+
+  // Auto-speak new assistant messages when TTS is enabled
+  useEffect(() => {
+    if (!isEnabled || isLoading) {
+      return;
+    }
+
+    // Find the last assistant message that hasn't been spoken yet
+    for (let i = messages.length - 1; i > lastSpokenIndexRef.current; i--) {
+      const message = messages[i];
+      if (message.role === "assistant") {
+        const textToSpeak = formatMessageForTTS(message);
+        if (textToSpeak && textToSpeak.trim()) {
+          // Start TTS immediately - no delay
+          speak(textToSpeak);
+          lastSpokenIndexRef.current = i;
+          break; // Only speak the most recent new message
+        }
+      }
+    }
+  }, [messages, isLoading, isEnabled, speak]);
+
   return (
     <div className="flex flex-col gap-6 py-6">
       {messages.length === 0 && !isLoading && (
@@ -43,6 +74,7 @@ export default function Chat({ messages, isLoading, onChipSelect }: ChatProps) {
               retailUI={message.ui?.retailUI}
               confidence={message.confidence}
               onChipSelect={onChipSelect}
+              generatedUI={message.generatedUI}
             />
           )}
         </div>
@@ -93,7 +125,8 @@ function AssistantMessage({
   mode = "shopping",
   retailUI,
   confidence,
-  onChipSelect
+  onChipSelect,
+  generatedUI
 }: { 
   content: string; 
   products?: ChatMessage["products"];
@@ -102,6 +135,7 @@ function AssistantMessage({
   retailUI?: AssistantUIModel["retailUI"];
   confidence?: number;
   onChipSelect?: (chip: string) => void;
+  generatedUI?: GeneratedUIBlock[];
 }) {
   const isEducationMode = mode === "education" || (!products || products.length === 0);
   
@@ -174,13 +208,27 @@ function AssistantMessage({
             ))}
           </div>
         </div>
+
+        {/* Render generative UI blocks - these take precedence over old retailUI */}
+        {generatedUI && generatedUI.length > 0 && (
+          <div className="space-y-4">
+            {generatedUI.map((block, idx) => (
+              <GeneratedUIRenderer key={idx} block={block} onChipSelect={onChipSelect} />
+            ))}
+          </div>
+        )}
         
-        {/* Quick chips for selection */}
-        {retailUI?.chips && retailUI.chips.length > 0 && (
-          <QuickChips 
-            options={retailUI.chips} 
-            onSelect={handleChipClick}
-          />
+        {/* Only show old retailUI if no generative UI blocks exist (backward compatibility) */}
+        {(!generatedUI || generatedUI.length === 0) && (
+          <>
+            {/* Quick chips for selection */}
+            {retailUI?.chips && retailUI.chips.length > 0 && (
+              <QuickChips 
+                options={retailUI.chips} 
+                onSelect={handleChipClick}
+              />
+            )}
+          </>
         )}
         
         {/* Product comparison */}
@@ -202,8 +250,9 @@ function AssistantMessage({
           />
         )}
         
-        {/* Product grid */}
-        {products && products.length > 0 && (
+        {/* Product grid - only show if no productGrid block in generatedUI */}
+        {products && products.length > 0 && 
+         !generatedUI?.some(block => block.kind === "productGrid") && (
           <ProductGrid products={products} title={uiTitle} />
         )}
       </div>
@@ -211,3 +260,41 @@ function AssistantMessage({
   );
 }
 
+function GeneratedUIRenderer({
+  block,
+  onChipSelect,
+}: {
+  block: GeneratedUIBlock;
+  onChipSelect?: (chip: string) => void;
+}) {
+  switch (block.kind) {
+    case "education":
+      return (
+        <EducationalBlock
+          title={block.title}
+          body={block.body}
+          sections={block.sections}
+          bullets={block.bullets}
+        />
+      );
+    case "comparison":
+      return <ProductComparisonTable items={block.items} summary={block.summary} />;
+    case "filters":
+      return (
+        <InteractiveFilters
+          heading={block.heading}
+          chips={block.chips}
+          ranges={block.ranges}
+          onSelect={onChipSelect}
+        />
+      );
+    case "productGrid":
+      return <CustomProductGrid title={block.title} products={block.products} />;
+    case "question":
+      return (
+        <DynamicQuestion prompt={block.prompt} chips={block.chips} onSelect={onChipSelect} />
+      );
+    default:
+      return null;
+  }
+}
