@@ -19,44 +19,44 @@ export function CustomProductGrid({ title, products }: CustomProductGridProps) {
   return (
     <div className="space-y-3">
       {title && (
-        <div className="text-lg font-semibold text-white flex items-center gap-2">
-          <span className="w-1 h-6 bg-gradient-to-b from-violet-400 to-fuchsia-500 rounded-full" />
+        <div className="text-base font-semibold text-foreground flex items-center gap-2">
+          <span className="w-1 h-5 bg-primary rounded-full" />
           {title}
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {products.map((product, idx) => (
           <a
             key={product.id + idx}
             href={product.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group relative rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden hover:border-violet-400/40 hover:-translate-y-1 transition"
+            className="group relative rounded-xl border border-border bg-card overflow-hidden hover:border-primary/30 hover:shadow-elevated transition-all duration-200"
           >
-            <div className="relative aspect-square bg-slate-900/80">
+            <div className="relative aspect-[4/3] bg-muted">
               <Image
                 src={product.image.url}
                 alt={product.image.altText || product.title}
                 fill
-                className="object-cover group-hover:scale-105 transition-transform duration-300"
+                className="object-cover group-hover:scale-102 transition-transform duration-300"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                 onError={(e) => {
                   const img = e.currentTarget;
                   img.src = "/placeholder-product.svg";
                 }}
               />
-              <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-black/70 text-white text-sm font-semibold">
+              <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-card/95 backdrop-blur-sm text-foreground text-sm font-semibold border border-border">
                 {formatPrice(product.price.amount)}
               </div>
             </div>
             <div className="p-4 space-y-2">
-              <div className="text-white font-medium line-clamp-2 group-hover:text-violet-200 transition">
+              <div className="text-foreground font-medium text-[15px] line-clamp-2 group-hover:text-primary transition-colors">
                 {product.title}
               </div>
-              <div className="flex items-center justify-between text-xs text-slate-400">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
                 {product.vendor && <span className="truncate max-w-[60%]">{product.vendor}</span>}
                 {product.productType && (
-                  <span className="px-2 py-1 rounded-full bg-white/5 border border-white/10 text-slate-300">
+                  <span className="px-2 py-1 rounded-full bg-secondary border border-border text-muted-foreground">
                     {product.productType}
                   </span>
                 )}
@@ -68,5 +68,3 @@ export function CustomProductGrid({ title, products }: CustomProductGridProps) {
     </div>
   );
 }
-
-

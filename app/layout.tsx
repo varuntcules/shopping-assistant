@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Figtree, EB_Garamond } from "next/font/google";
+import { Figtree } from "next/font/google";
 import "./globals.css";
 
 const figtree = Figtree({
   variable: "--font-figtree",
   subsets: ["latin"],
-});
-
-const ebGaramond = EB_Garamond({
-  variable: "--font-eb-garamond",
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["italic"],
 });
 
 export const metadata: Metadata = {
@@ -26,9 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${figtree.variable} ${ebGaramond.variable} antialiased`}
-      >
+      <body className={`${figtree.variable} antialiased`}>
         {children}
       </body>
     </html>

@@ -21,7 +21,6 @@ export default function CheckoutView({
 
   const handleConfirm = async () => {
     setIsConfirming(true);
-    // Simulate order processing
     await new Promise((resolve) => setTimeout(resolve, 1500));
     setIsConfirming(false);
     setIsConfirmed(true);
@@ -30,10 +29,10 @@ export default function CheckoutView({
 
   if (isConfirmed) {
     return (
-      <div className="mt-6 bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-6 text-center">
-        <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+      <div className="mt-6 bg-success/10 border border-success/20 rounded-xl p-6 text-center">
+        <div className="w-14 h-14 bg-success/20 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg
-            className="w-8 h-8 text-emerald-400"
+            className="w-7 h-7 text-success"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -46,44 +45,44 @@ export default function CheckoutView({
             />
           </svg>
         </div>
-        <h3 className="text-xl font-semibold text-white mb-2">
-          Order Confirmed!
+        <h3 className="text-lg font-semibold text-foreground mb-2">
+          Order Confirmed
         </h3>
-        <p className="text-slate-300 mb-4">
+        <p className="text-muted-foreground mb-4 text-sm">
           Your order has been placed successfully. You'll receive a confirmation email shortly.
         </p>
-        <p className="text-sm text-slate-400">
-          Total: ₹{total.toLocaleString()}
+        <p className="text-sm text-muted-foreground">
+          Total: <span className="font-semibold text-foreground">₹{total.toLocaleString()}</span>
         </p>
       </div>
     );
   }
 
   return (
-    <div className="mt-6 bg-white/5 border border-white/10 rounded-xl p-6">
-      <h3 className="text-lg font-semibold text-white mb-4">Review Your Order</h3>
+    <div className="mt-6 bg-card border border-border rounded-xl p-6">
+      <h3 className="text-base font-semibold text-foreground mb-4">Review Your Order</h3>
       
       <div className="space-y-3 mb-6">
         {items.map((item) => (
           <div
             key={item.id}
-            className="flex items-center justify-between bg-white/5 rounded-lg p-3"
+            className="flex items-center justify-between bg-muted rounded-lg p-3"
           >
             <div className="flex-1">
-              <h4 className="font-medium text-white">{item.name}</h4>
-              <p className="text-sm text-slate-400">{item.category}</p>
+              <h4 className="font-medium text-foreground text-sm">{item.name}</h4>
+              <p className="text-xs text-muted-foreground">{item.category}</p>
             </div>
-            <p className="text-violet-400 font-semibold">
+            <p className="text-primary font-semibold">
               ₹{item.price.toLocaleString()}
             </p>
           </div>
         ))}
       </div>
 
-      <div className="border-t border-white/10 pt-4 mb-6">
-        <div className="flex items-center justify-between text-lg font-semibold text-white">
+      <div className="border-t border-border pt-4 mb-6">
+        <div className="flex items-center justify-between text-base font-semibold text-foreground">
           <span>Total</span>
-          <span className="text-violet-400">₹{total.toLocaleString()}</span>
+          <span className="text-primary">₹{total.toLocaleString()}</span>
         </div>
       </div>
 
@@ -91,22 +90,23 @@ export default function CheckoutView({
         <button
           onClick={handleConfirm}
           disabled={isConfirming}
-          className="flex-1 bg-gradient-to-r from-violet-500 to-fuchsia-500
-                   text-white font-medium py-3 rounded-lg
-                   hover:from-violet-400 hover:to-fuchsia-400
+          className="flex-1 bg-primary text-primary-foreground font-medium py-3 rounded-lg
+                   hover:bg-primary/90
                    disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-all duration-200"
+                   transition-colors duration-200
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           {isConfirming ? "Processing..." : "Confirm Order"}
         </button>
         <button
           onClick={onCancel}
           disabled={isConfirming}
-          className="px-6 py-3 bg-white/5 border border-white/10
-                   text-white rounded-lg
-                   hover:bg-white/10
+          className="px-6 py-3 bg-secondary border border-border
+                   text-secondary-foreground rounded-lg
+                   hover:bg-secondary/80
                    disabled:opacity-50 disabled:cursor-not-allowed
-                   transition-all duration-200"
+                   transition-colors duration-200
+                   focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
         >
           Cancel
         </button>
@@ -114,4 +114,3 @@ export default function CheckoutView({
     </div>
   );
 }
-

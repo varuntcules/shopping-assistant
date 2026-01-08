@@ -59,7 +59,6 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
   const finalTranscriptRef = useRef("");
 
   useEffect(() => {
-    // Check if Speech Recognition is supported
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
@@ -108,7 +107,6 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
       console.log("[Voice] Recognition ended");
       setIsListening(false);
       
-      // Send the final transcript to parent
       const fullTranscript = finalTranscriptRef.current.trim();
       if (fullTranscript) {
         onTranscript(fullTranscript);
@@ -143,11 +141,11 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
 
   if (!isSupported) {
     return (
-      <div className="flex items-center gap-2 text-amber-400/80 text-xs">
+      <div className="flex items-center gap-2 text-warning text-xs">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
-        <span>Voice not supported in this browser</span>
+        <span>Voice not supported</span>
       </div>
     );
   }
@@ -159,36 +157,32 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
         onClick={toggleListening}
         disabled={disabled}
         className={`
-          relative flex items-center justify-center w-12 h-12 rounded-full
-          transition-all duration-300 ease-out
+          relative flex items-center justify-center w-11 h-11 rounded-xl
+          transition-all duration-200
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2
           ${isListening 
-            ? "bg-gradient-to-br from-rose-500 to-pink-600 shadow-lg shadow-rose-500/40 scale-110" 
-            : "bg-gradient-to-br from-violet-500 to-purple-600 hover:from-violet-400 hover:to-purple-500 shadow-lg shadow-violet-500/30 hover:shadow-violet-500/50 hover:scale-105"
+            ? "bg-destructive text-destructive-foreground" 
+            : "bg-secondary border border-border text-secondary-foreground hover:bg-secondary/80 hover:border-primary/30"
           }
           ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
         `}
         aria-label={isListening ? "Stop recording" : "Start recording"}
       >
-        {/* Pulse animation when listening */}
+        {/* Subtle pulse when listening */}
         {isListening && (
-          <>
-            <span className="absolute inset-0 rounded-full bg-rose-400 animate-ping opacity-30" />
-            <span className="absolute inset-0 rounded-full bg-rose-400 animate-pulse opacity-20" />
-          </>
+          <span className="absolute inset-0 rounded-xl bg-destructive/20 animate-ping" />
         )}
         
         {/* Microphone icon */}
         <svg 
-          className={`w-5 h-5 text-white relative z-10 transition-transform ${isListening ? "scale-110" : ""}`} 
+          className="w-5 h-5 relative z-10" 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
         >
           {isListening ? (
-            // Stop icon
-            <rect x="6" y="6" width="12" height="12" rx="1" strokeWidth={2} fill="currentColor" />
+            <rect x="6" y="6" width="12" height="12" rx="2" strokeWidth={2} fill="currentColor" />
           ) : (
-            // Mic icon
             <path 
               strokeLinecap="round" 
               strokeLinejoin="round" 
@@ -201,13 +195,13 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
       
       {/* Interim text indicator */}
       {isListening && (
-        <div className="flex items-center gap-2 text-rose-300 text-sm animate-pulse">
+        <div className="flex items-center gap-2 text-destructive text-sm">
           <div className="flex gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-bounce" style={{ animationDelay: "0ms" }} />
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-bounce" style={{ animationDelay: "150ms" }} />
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-bounce" style={{ animationDelay: "300ms" }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-bounce" style={{ animationDelay: "0ms" }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-bounce" style={{ animationDelay: "150ms" }} />
+            <span className="w-1.5 h-1.5 rounded-full bg-destructive animate-bounce" style={{ animationDelay: "300ms" }} />
           </div>
-          <span className="max-w-[200px] truncate">
+          <span className="max-w-[150px] truncate text-muted-foreground">
             {interimText || "Listening..."}
           </span>
         </div>
@@ -215,4 +209,3 @@ export default function VoiceInput({ onTranscript, disabled }: VoiceInputProps) 
     </div>
   );
 }
-

@@ -10,13 +10,11 @@ interface DynamicQuestionProps {
 
 export function DynamicQuestion({ prompt, chips, onSelect }: DynamicQuestionProps) {
   return (
-    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
-      <div className="text-white/90">{prompt}</div>
+    <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <div className="text-foreground text-[15px]">{prompt}</div>
       {chips && chips.length > 0 && (
         <QuickChips options={chips} onSelect={(v) => onSelect?.(v)} />
       )}
     </div>
   );
 }
-
-

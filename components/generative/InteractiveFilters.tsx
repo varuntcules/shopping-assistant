@@ -21,19 +21,20 @@ export function InteractiveFilters({ heading, chips, ranges, onSelect }: Interac
   };
 
   return (
-    <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
-      {heading && <div className="text-sm font-semibold text-white/90">{heading}</div>}
+    <div className="space-y-3 rounded-xl border border-border bg-card p-4">
+      {heading && <div className="text-sm font-semibold text-foreground">{heading}</div>}
 
       {chips && chips.length > 0 && (
         <QuickChips options={chips} onSelect={handleSelect} />
       )}
 
       {ranges && ranges.length > 0 && (
-        <div className="grid gap-2 text-sm text-slate-200">
+        <div className="grid gap-2 text-sm">
           {ranges.map((range, idx) => (
             <button
               key={idx}
-              className="text-left px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:border-violet-400/40 transition"
+              className="text-left px-3 py-2 rounded-lg bg-secondary border border-border text-secondary-foreground hover:border-primary/30 hover:bg-primary/5 transition-colors
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
               onClick={() => {
                 const label =
                   range.min !== undefined || range.max !== undefined
@@ -44,7 +45,7 @@ export function InteractiveFilters({ heading, chips, ranges, onSelect }: Interac
             >
               {range.label}
               {range.min !== undefined || range.max !== undefined ? (
-                <span className="text-slate-400 ml-1">
+                <span className="text-muted-foreground ml-1">
                   ({range.min ?? 0} - {range.max ?? "∞"})
                 </span>
               ) : null}
@@ -55,5 +56,3 @@ export function InteractiveFilters({ heading, chips, ranges, onSelect }: Interac
     </div>
   );
 }
-
-

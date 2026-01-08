@@ -1,34 +1,132 @@
 @import "tailwindcss";
 
+/* ========================================
+   DESIGN TOKENS - Quiet Luxury Theme
+   ======================================== */
+
 :root {
-  --background: #0a0a0a;
-  --foreground: #ededed;
+  /* Core Colors - Light Mode */
+  --background: hsl(30 20% 98%);
+  --foreground: hsl(222 47% 11%);
+  
+  /* Surfaces */
+  --card: hsl(0 0% 100%);
+  --card-foreground: hsl(222 47% 11%);
+  --popover: hsl(0 0% 100%);
+  --popover-foreground: hsl(222 47% 11%);
+  
+  /* Muted */
+  --muted: hsl(210 20% 96%);
+  --muted-foreground: hsl(215 16% 40%);
+  
+  /* Borders & Inputs */
+  --border: hsl(214 18% 88%);
+  --input: hsl(214 18% 88%);
+  
+  /* Accent */
+  --ring: hsl(217 91% 60%);
+  --primary: hsl(217 91% 60%);
+  --primary-foreground: hsl(0 0% 100%);
+  
+  /* Secondary */
+  --secondary: hsl(210 20% 96%);
+  --secondary-foreground: hsl(222 47% 11%);
+  
+  /* Semantic Colors */
+  --destructive: hsl(0 84% 60%);
+  --destructive-foreground: hsl(0 0% 100%);
+  --success: hsl(142 72% 35%);
+  --success-foreground: hsl(0 0% 100%);
+  --warning: hsl(38 92% 50%);
+  --warning-foreground: hsl(222 47% 11%);
+  
+  /* Design System */
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
 }
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: hsl(222 47% 7%);
+    --foreground: hsl(210 40% 98%);
+    
+    --card: hsl(222 47% 9%);
+    --card-foreground: hsl(210 40% 98%);
+    --popover: hsl(222 47% 9%);
+    --popover-foreground: hsl(210 40% 98%);
+    
+    --muted: hsl(217 20% 14%);
+    --muted-foreground: hsl(215 20% 70%);
+    
+    --border: hsl(217 18% 18%);
+    --input: hsl(217 18% 18%);
+  }
+}
+
+/* ========================================
+   TAILWIND THEME MAPPING
+   ======================================== */
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  
   --font-body: var(--font-figtree);
-  --font-title: var(--font-eb-garamond);
+  --font-title: var(--font-figtree);
+  
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
 }
+
+/* ========================================
+   BASE STYLES
+   ======================================== */
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-body), system-ui, -apple-system, sans-serif;
+  font-family: var(--font-body), system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Title/Heading styles with EB Garamond italic */
+/* Typography - Clean, no italic headings */
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-title), serif;
-  font-style: italic;
+  font-family: var(--font-title), system-ui, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-/* Custom Animations */
+/* ========================================
+   SUBTLE ANIMATIONS
+   ======================================== */
+
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -39,7 +137,7 @@ h1, h2, h3, h4, h5, h6 {
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -47,55 +145,83 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
-@keyframes pulse-glow {
+@keyframes subtle-pulse {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+    opacity: 1;
   }
   50% {
-    box-shadow: 0 0 40px rgba(139, 92, 246, 0.5);
+    opacity: 0.7;
   }
 }
 
 .animate-fadeIn {
-  animation: fadeIn 0.4s ease-out forwards;
+  animation: fadeIn 0.3s ease-out forwards;
 }
 
 .animate-slideUp {
-  animation: slideUp 0.5s ease-out forwards;
+  animation: slideUp 0.4s ease-out forwards;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+.animate-subtle-pulse {
+  animation: subtle-pulse 2s ease-in-out infinite;
 }
 
-/* Scrollbar Styling */
+/* ========================================
+   SCROLLBAR STYLING - Minimal
+   ======================================== */
+
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.3);
-  border-radius: 4px;
+  background: var(--border);
+  border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.5);
+  background: var(--muted-foreground);
 }
 
-/* Focus Styles */
+/* ========================================
+   FOCUS STYLES - Accessible
+   ======================================== */
+
 *:focus-visible {
-  outline: 2px solid rgba(139, 92, 246, 0.5);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
 
-/* Selection */
+/* ========================================
+   SELECTION
+   ======================================== */
+
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
-  color: white;
+  background: hsl(217 91% 60% / 0.2);
+  color: var(--foreground);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Card surfaces */
+.surface-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/* Subtle shadow for floating elements only */
+.shadow-subtle {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.04), 0 1px 2px -1px rgb(0 0 0 / 0.04);
+}
+
+.shadow-elevated {
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
 }
