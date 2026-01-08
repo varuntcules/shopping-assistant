@@ -444,7 +444,7 @@ export async function processMessage(
   const hasSpecificProductType = updatedInfo.product_type && 
     !['camera', 'cameras'].includes(updatedInfo.product_type.toLowerCase());
   
-  if (hasSpecificProductType) {
+  if (hasSpecificProductType && updatedInfo.product_type) {
     console.log("[SimpleAgent] Prioritizing product_type search:", updatedInfo.product_type, "over use_case:", cleanUseCase);
     
     const productTypeSearch = await searchProductsByType(

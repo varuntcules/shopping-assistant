@@ -307,22 +307,27 @@ export function parseUserResponse(
   switch (blockerType) {
     case BlockerType.MISSING_USE_CASE:
       // Return the use case as-is for semantic matching
-      return { primaryUseCase: userResponse.trim() };
+      return { preferences: { use_case: userResponse.trim() } };
 
-    case BlockerType.BUDGET_UNCLEAR:
+    case BlockerType.BUDGET_UNCLEAR: {
       // Parse budget from response
-      return { budget: parseBudgetFromResponse(response) };
+      const budget = parseBudgetFromResponse(response);
+      return {
+        budget_min: budget?.min ?? null,
+        budget_max: budget?.max ?? null,
+      };
+    }
 
     case BlockerType.SKILL_MISMATCH:
       // Map to skill level
-      return { skillLevel: parseSkillFromResponse(response) };
+      return { skill_level: parseSkillFromResponse(response) };
 
     case BlockerType.PORTABILITY_TRADEOFF:
       // Map to portability preference
-      return { portabilityPreference: parsePortabilityFromResponse(response) };
+      return { preferences: { portability: parsePortabilityFromResponse(response) } };
 
     default:
-      return { additionalContext: userResponse };
+      return { preferences: { additional_context: userResponse } };
   }
 }
 

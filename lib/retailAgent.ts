@@ -935,26 +935,26 @@ Extract any information the user provided and generate a brief acknowledgment:`;
     const updates: Partial<BlockerState> = {};
 
     if (parsed.extractedUseCase && parsed.extractedUseCase !== "null") {
-      updates.primaryUseCase = parsed.extractedUseCase;
+      updates.preferences = { ...updates.preferences, use_case: parsed.extractedUseCase };
     }
 
-    if (parsed.extractedBudgetMin !== undefined || parsed.extractedBudgetMax !== undefined) {
-      updates.budget = {
-        min: parsed.extractedBudgetMin,
-        max: parsed.extractedBudgetMax,
-      };
+    if (parsed.extractedBudgetMin !== undefined) {
+      updates.budget_min = parsed.extractedBudgetMin;
+    }
+    if (parsed.extractedBudgetMax !== undefined) {
+      updates.budget_max = parsed.extractedBudgetMax;
     }
 
     if (parsed.extractedSkillLevel) {
-      updates.skillLevel = parsed.extractedSkillLevel;
+      updates.skill_level = parsed.extractedSkillLevel;
     }
 
     if (parsed.extractedPortability) {
-      updates.portabilityPreference = parsed.extractedPortability;
+      updates.preferences = { ...updates.preferences, portability: parsed.extractedPortability as "portable" | "quality" | "balanced" };
     }
 
     if (parsed.additionalContext) {
-      updates.additionalContext = parsed.additionalContext;
+      updates.preferences = { ...updates.preferences, additional_context: parsed.additionalContext };
     }
 
     console.log("[BlockerAgent] Extracted updates:", updates);
@@ -1037,22 +1037,25 @@ export async function processBlockerConversation(
       minScore: 0.4,
     };
 
-    if (updatedState.primaryUseCase) {
-      searchParams.useCase = updatedState.primaryUseCase;
+    if (updatedState.preferences?.use_case) {
+      searchParams.useCase = updatedState.preferences.use_case;
     }
-    if (updatedState.budget) {
-      searchParams.budget = updatedState.budget;
+    if (updatedState.budget_min !== null || updatedState.budget_max !== null) {
+      searchParams.budget = {
+        min: updatedState.budget_min ?? undefined,
+        max: updatedState.budget_max ?? undefined,
+      };
     }
-    if (updatedState.skillLevel) {
-      searchParams.skillLevel = updatedState.skillLevel as "beginner" | "intermediate" | "pro" | "expert";
+    if (updatedState.skill_level) {
+      searchParams.skillLevel = updatedState.skill_level as "beginner" | "intermediate" | "pro" | "expert";
     }
-    if (updatedState.portabilityPreference) {
-      searchParams.portabilityPreference = updatedState.portabilityPreference;
+    if (updatedState.preferences?.portability) {
+      searchParams.portabilityPreference = updatedState.preferences.portability;
     }
 
     // Only search if we have at least a use case
     let candidates: EnrichedProduct[] = [];
-    if (updatedState.primaryUseCase) {
+    if (updatedState.preferences?.use_case) {
       console.log("[BlockerAgent] Searching with params:", searchParams);
       const searchResult = await searchEnrichedProducts(searchParams);
       candidates = searchResult.products;
@@ -1092,11 +1095,11 @@ export async function processBlockerConversation(
     let message = acknowledgment;
     if (candidates.length > 0) {
       message += " Based on what you've told me, here are some great options:";
-    } else if (updatedState.primaryUseCase) {
+    } else if (updatedState.preferences?.use_case) {
       message += " Let me find some options for you...";
       // Try a broader search
       const broadSearchResult = await searchEnrichedProducts({
-        useCase: updatedState.primaryUseCase,
+        useCase: updatedState.preferences.use_case,
         limit: 6,
         minScore: 0.3,
       });
@@ -1162,12 +1165,15 @@ export async function processBlockerConversation(
  * Convert legacy state to blocker state
  */
 export function legacyToBlockerState(legacy: ConversationState): BlockerState {
+  const budgetObj = legacy.budget_range ? parseBudgetRangeToObject(legacy.budget_range) : null;
   return {
-    primaryUseCase: legacy.intent || legacy.primary_use,
-    budget: legacy.budget_range ? parseBudgetRangeToObject(legacy.budget_range) : null,
-    skillLevel: mapExperienceToSkill(legacy.experience_level),
-    portabilityPreference: null,
-    additionalContext: legacy.primary_use || undefined,
+    budget_min: budgetObj?.min ?? null,
+    budget_max: budgetObj?.max ?? null,
+    skill_level: mapExperienceToSkill(legacy.experience_level),
+    preferences: {
+      use_case: legacy.intent || legacy.primary_use || undefined,
+      additional_context: legacy.primary_use || undefined,
+    },
   };
 }
 
