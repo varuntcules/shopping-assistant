@@ -31,7 +31,7 @@ export function getGenerativeUITools(priorCollected: CollectedInfo | null = null
     show_product_grid: {
       description:
         "Render a grid of products. Use after fetching products. Keep to 4-8 items for clarity.",
-      parameters: z.object({
+      inputSchema: z.object({
         title: z.string().optional(),
         products: z
           .array(
@@ -79,7 +79,7 @@ export function getGenerativeUITools(priorCollected: CollectedInfo | null = null
     show_product_comparison: {
       description:
         "Show a side-by-side comparison of 2-4 products with specs/pros/cons. Use after fetching products.",
-      parameters: z.object({
+      inputSchema: z.object({
         summary: z.string().optional(),
         items: z
           .array(
@@ -116,7 +116,7 @@ export function getGenerativeUITools(priorCollected: CollectedInfo | null = null
     show_educational_content: {
       description:
         "Explain a concept in depth (e.g., sensor size, lens basics, low light performance). Provide rich educational content with detailed explanations, not just tips. Use 'body' for main explanation text, 'sections' for structured breakdowns (e.g., Full-Frame vs APS-C vs Micro Four Thirds), and 'bullets' for key takeaways. This pauses the shopping flow to educate the user. IMPORTANT: Always include relatedUseCases AND recommendedSensorSizes/recommendedFeatures when applicable to preserve context for follow-up queries.",
-      parameters: z.object({
+      inputSchema: z.object({
         title: z.string().describe("Clear educational title (e.g., 'Understanding Sensor Size for Low Light Photography')"),
         body: z.string().optional().describe("Main explanatory text explaining the concept in detail. Use markdown-style formatting with **bold** for emphasis."),
         sections: z.array(z.object({
@@ -182,7 +182,7 @@ export function getGenerativeUITools(priorCollected: CollectedInfo | null = null
     show_interactive_filters: {
       description:
         "Render interactive filters to refine search. Use chips for categorical filters and ranges for budgets.",
-      parameters: z.object({
+      inputSchema: z.object({
         heading: z.string().optional(),
         chips: z.array(z.string()).optional(),
         ranges: z
@@ -218,7 +218,7 @@ export function getGenerativeUITools(priorCollected: CollectedInfo | null = null
     ask_clarifying_question: {
       description:
         "Ask a clarifying question with quick chips. Use when key info (use case, budget, product type) is missing.",
-      parameters: z.object({
+      inputSchema: z.object({
         prompt: z.string(),
         chips: z.array(z.string()).optional(),
       }),

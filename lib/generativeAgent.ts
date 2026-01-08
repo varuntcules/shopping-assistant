@@ -148,7 +148,7 @@ IMPORTANT: Each turn should have at most TWO tool calls: retail_assistant (once)
       retail_assistant: {
         description:
           "Parses the user request, updates collected info, and returns product suggestions plus state. ONLY call this ONCE per turn - if you need to show UI, use the result from the first call.",
-        parameters: z.object({
+        inputSchema: z.object({
           message: z.string().describe("The latest raw user message"),
         }),
         execute: async (
